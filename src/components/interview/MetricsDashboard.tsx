@@ -107,28 +107,28 @@ export function MetricsDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li className="flex items-start gap-2">
-                                <span className="text-red-500 mt-1">✗</span>
-                                <span>Inconsistent evaluations (67% agreement between interviewers)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-red-500 mt-1">✗</span>
-                                <span>90+ minutes per candidate (including prep and debrief)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-red-500 mt-1">✗</span>
-                                <span>No cheating detection or integrity monitoring</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-red-500 mt-1">✗</span>
-                                <span>Manual code review, subjective feedback</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-red-500 mt-1">✗</span>
-                                <span>Limited scalability (requires senior engineers)</span>
-                            </li>
-                        </ul>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
+                        <span className="flex-1">Inconsistent evaluations (67% agreement between interviewers)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
+                        <span className="flex-1">90+ minutes per candidate (including prep and debrief)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
+                        <span className="flex-1">No cheating detection or integrity monitoring</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
+                        <span className="flex-1">Manual code review, subjective feedback</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
+                        <span className="flex-1">Limited scalability (requires senior engineers)</span>
+                    </li>
+                </ul>
                     </CardContent>
                 </Card>
 
@@ -140,28 +140,28 @@ export function MetricsDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li className="flex items-start gap-2">
-                                <span className="text-green-500 mt-1">✓</span>
-                                <span>Consistent rubric-based evaluation (94% agreement)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-green-500 mt-1">✓</span>
-                                <span>45 minutes average (50% time reduction)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-green-500 mt-1">✓</span>
-                                <span>Automated integrity checks (tab switching, paste detection)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-green-500 mt-1">✓</span>
-                                <span>AI-powered code analysis with CodeRabbit + Gemini</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-green-500 mt-1">✓</span>
-                                <span>Infinitely scalable (parallel interviews in Daytona containers)</span>
-                            </li>
-                        </ul>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                        <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
+                        <span className="flex-1">Consistent rubric-based evaluation (94% agreement)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
+                        <span className="flex-1">45 minutes average (50% time reduction)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
+                        <span className="flex-1">Automated integrity checks (tab switching, paste detection)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
+                        <span className="flex-1">AI-powered code analysis with CodeRabbit + Gemini</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
+                        <span className="flex-1">Infinitely scalable (parallel interviews in Daytona containers)</span>
+                    </li>
+                </ul>
                     </CardContent>
                 </Card>
             </div>
