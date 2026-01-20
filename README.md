@@ -7,8 +7,12 @@ An advanced, AI-powered technical interview platform that combines a live coding
 *   **🤖 AI Interview Agent:** A conversational AI interviewer (powered by ElevenLabs) that guides candidates through problems, answers questions, and provides verbal feedback.
 *   **💻 Secure Coding Sandbox:** A fully functional, browser-based code editor (Monaco Editor) backed by **Daytona** containers for safe code execution in various languages.
 *   **🧠 Intelligent Code Analysis:** Real-time code reviews and "CodeRabbit-style" feedback powered by **Google Gemini**, offering insights on bugs, complexity, and best practices.
+*   **🐇 Deep CodeRabbit Integration:** Native integration with the **CodeRabbit CLI** within the Daytona sandbox, providing professional-grade automated code reviews, walkthroughs, and issue detection directly in the interview workflow.
 *   **⚡ Modern UI/UX:** A responsive, accessible interface built with **Next.js 16**, **Tailwind CSS 4**, and **Shadcn UI**.
 *   **📊 Live Feedback Loop:** Instant feedback on code execution and analysis during the interview session.
+*   **🕵️‍♂️ Integrity & Proctoring:** Automated monitoring of tab focus and paste events to ensure interview integrity.
+*   **📝 Automated Reporting:** Generates comprehensive Markdown reports summarizing code quality, test results, and integrity metrics.
+*   **🔧 Agentic Infrastructure:** The AI agent can autonomously install dependencies (pip/npm) and run hidden test cases to verify solutions.
 
 ## 🛠️ Technology Stack
 
@@ -25,6 +29,7 @@ An advanced, AI-powered technical interview platform that combines a live coding
 
 ### AI & Backend Services
 *   **[Daytona SDK](https://daytona.io/)** - For managing secure, ephemeral coding environments.
+*   **[CodeRabbit CLI](https://coderabbit.ai/)** - Integrated for deep, contextual code reviews.
 *   **[ElevenLabs React SDK](https://elevenlabs.io/)** - For low-latency conversational AI.
 *   **[Google Generative AI (Gemini)](https://ai.google.dev/)** - For code reasoning and interview logic.
 *   **[Zustand](https://github.com/pmndrs/zustand)** - Lightweight state management.
@@ -112,6 +117,7 @@ An advanced, AI-powered technical interview platform that combines a live coding
 - [ ] **Phase 3: Voice Agent:** Implement full ElevenLabs conversational flow.
 - [ ] **Phase 4: Code Analysis:** Enhance Gemini integration for deeper code reviews.
 - [ ] **Phase 5: UI Polish:** Refine animations, themes, and accessibility.
+- [x] **Phase 7: Daytona Sprint Features:** Agentic control, autonomous testing, integrity monitoring, and reporting.
 
 ## 🤝 Contributing
 
