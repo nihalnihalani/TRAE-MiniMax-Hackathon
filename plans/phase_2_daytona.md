@@ -1,37 +1,110 @@
 # Phase 2: Daytona Sandbox Integration
 
 ## Goal
-Establish a connection to the Daytona platform to provision coding environments and enable file system operations for the candidate.
+Build the bridge between the frontend editor and the Daytona execution environment. This involves a service layer to manage workspaces and Next.js API routes to securely proxy requests, bypassing CORS and exposing only necessary operations.
 
-## Implementation Plan
+## Detailed Implementation Steps
 
-1.  **Daytona SDK/API Setup**
-    *   Research/Verify Daytona API capability for programmatic workspace creation.
-    *   Create a utility service `lib/daytona.ts` to manage workspace lifecycle.
-    *   *Key Functions*:
-        *   `createSession(language: string)`: Spins up a container/workspace.
-        *   `getFile(path: string)`: Reads code from the sandbox.
-        *   `updateFile(path: string, content: string)`: Writes code to the sandbox.
-        *   `runCode(command: string)`: Executes the code (if needed for output capture).
+### 1. Service Layer (`src/lib/daytona.ts`)
+Create a singleton or utility class `DaytonaService` to handle API logic.
 
-2.  **Backend Routes for Sandbox Proxy**
-    *   Since browsers can't directly access some sandbox internals securely or due to CORS, create Next.js API Routes (`app/api/sandbox/...`).
-    *   Endpoint: `POST /api/sandbox/create`
-    *   Endpoint: `POST /api/sandbox/execute`
-    *   Endpoint: `POST /api/sandbox/save`
+```typescript
+// Conceptual Interface
+interface WorkspaceConfig {
+  language: 'python' | 'typescript';
+  id: string;
+}
 
-3.  **Editor Integration**
-    *   Connect Monaco Editor `onChange` events to a debounced save function calling `updateFile`.
-    *   *Optimization*: Use WebSocket or efficient polling if real-time observation is critical for the agent. For this MVP, debounced API calls are likely sufficient.
+interface ExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
 
-## Debug Plan
+export class DaytonaService {
+  private apiKey: string;
+  private baseUrl: string;
 
-1.  **Verification Steps**
-    *   Test `createSession` manually via an API testing tool (Postman/Curl) or a simple button in UI.
-    *   Verify that a file written via `updateFile` can be read back via `getFile`.
-    *   Verify execution logs are returned correctly.
+  constructor() {
+    this.apiKey = process.env.DAYTONA_API_KEY!;
+    this.baseUrl = process.env.DAYTONA_API_URL!;
+  }
 
-2.  **Common Issues & Fixes**
-    *   *Issue*: Daytona API authentication failure. *Fix*: Rotate API key, check permissions.
-    *   *Issue*: Latency in typing. *Fix*: Adjust debounce timing (e.g., 1000ms) or switch to optimistic UI updates (local state first, sync later).
-    *   *Issue*: CORS errors. *Fix*: Ensure API proxy in Next.js handles the request to Daytona.
+  // 1. Create a workspace (or getting a pre-warmed one)
+  async createWorkspace(language: string): Promise<WorkspaceConfig> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+      return { id: 'mock-ws-123', language };
+    }
+    // Call real Daytona Create API
+    // POST /workspaces ...
+  }
+
+  // 2. Execute Code
+  async executeCode(workspaceId: string, code: string): Promise<ExecutionResult> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+      return { stdout: "Mock Output: Hello World", stderr: "", exitCode: 0 };
+    }
+    // Call Daytona Exec API
+    // POST /workspaces/{id}/exec ...
+  }
+
+  // 3. File Operations (for syncing editor)
+  async updateFile(workspaceId: string, path: string, content: string): Promise<void> {
+    // PUT /workspaces/{id}/files ...
+  }
+}
+```
+
+### 2. API Routes (Next.js Backend)
+Since the browser cannot hold the `DAYTONA_API_KEY`, we wrap calls in internal APIs.
+
+**Route: `src/app/api/sandbox/execute/route.ts`**
+*   **Method**: `POST`
+*   **Request Schema**:
+    ```json
+    {
+      "workspaceId": "string",
+      "code": "string",
+      "language": "python"
+    }
+    ```
+*   **Response Schema**:
+    ```json
+    {
+      "stdout": "string",
+      "stderr": "string",
+      "isError": boolean
+    }
+    ```
+
+**Route: `src/app/api/sandbox/create/route.ts`**
+*   **Method**: `POST`
+*   **Body**: `{ "language": "python" }`
+*   **Response**: `{ "workspaceId": "...", "status": "ready" }`
+
+### 3. Editor Integration (Frontend)
+In `src/components/editor/CodeEditor.tsx`:
+*   Use `onChange` listener from Monaco.
+*   Implement a **Debounce** (wait 1000ms after last keystroke) before saving to Daytona (to save API bandwidth).
+*   Add a "Run" button that calls `/api/sandbox/execute` immediately.
+
+## Debugging & Verification
+
+### Step 1: Mock Mode Verification
+*   Set `NEXT_PUBLIC_USE_MOCK_DAYTONA=true` in `.env.local`.
+*   Click "Run" in the UI.
+*   **Expected**: Console logs "Mock Output: Hello World".
+
+### Step 2: API Endpoint Testing (Curl)
+Test the internal API independent of the UI.
+```bash
+curl -X POST http://localhost:3000/api/sandbox/execute \
+  -H "Content-Type: application/json" \
+  -d '{"workspaceId":"test", "code":"print(1+1)", "language":"python"}'
+```
+*   **Expected**: JSON response with `stdout`.
+
+### Step 3: Latency Check
+*   Measure the time from clicking "Run" to seeing output.
+*   If > 2 seconds, verify if Daytona container spin-up is the bottleneck.
+*   **Fix**: Implement "Keep-Alive" pings or pre-provision workspaces on the Landing Page.

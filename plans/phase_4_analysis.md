@@ -1,36 +1,75 @@
 # Phase 4: Monitoring & Analysis (Sentry & Code Analysis)
 
 ## Goal
-Implement automated quality checks and error monitoring to provide data for the competency report and real-time feedback.
+Implement the "passive observer" systems. Sentry catches runtime crashes (the "red squigglies" of runtime), while the Analysis Agent (LLM) catches "smells" (bad practices).
 
-## Implementation Plan
+## Detailed Implementation Steps
 
-1.  **Sentry Integration**
-    *   **Frontend**: Initialize Sentry in Next.js to catch UI crashes.
-    *   **Runtime (Sandbox)**: This is the tricky part.
-        *   *Approach*: When `runCode` is executed in Daytona, parse the `stderr`.
-        *   If `stderr` contains a traceback/error, send a custom event to Sentry via the server-side SDK: `Sentry.captureException(new Error(sandboxError))`.
-        *   Tag these errors with `candidate_id` and `context: sandbox`.
+### 1. Sentry for Runtime Errors
+*   **Frontend**: Standard `@sentry/nextjs` config.
+*   **Sandbox Errors**:
+    *   In `/api/sandbox/execute`, capture the `stderr` from the execution result.
+    *   If `exitCode !== 0`, explicitly send to Sentry:
+    ```typescript
+    import * as Sentry from "@sentry/nextjs";
 
-2.  **Code Quality Analysis (CodeRabbit-ish)**
-    *   Since CodeRabbit might be a GitHub App, for a *live* sandbox, we might need a proxy.
-    *   *Alternative*: Use an LLM (Claude/GPT-4) as a "Code Reviewer" agent running in the background.
-    *   *Trigger*: On successful compile/run or every N minutes.
-    *   *Action*: Send code to Reviewer LLM with prompt: "Analyze for code smells, complexity, and best practices."
-    *   *Output*: JSON list of issues.
-    *   *Feedback*: Store these issues. The ElevenLabs agent can read these via a tool (`get_code_review_feedback`) and verbally mention them: "I noticed you're using a nested loop there, is that O(n^2) intentional?"
+    if (result.exitCode !== 0) {
+      Sentry.captureException(new Error(`Sandbox Runtime Error: ${result.stderr}`), {
+        tags: {
+          component: "sandbox_execution",
+          language: body.language,
+          candidate_id: "session_123"
+        },
+        extra: {
+          code_snippet: body.code.substring(0, 100) // Context
+        }
+      });
+    }
+    ```
 
-3.  **Competency Report Generation**
-    *   Collect metrics: Time taken, Lines of Code, Error count (Sentry), Code Smells (Analysis).
-    *   Generate a simple Markdown summary at the end.
+### 2. "CodeRabbit" Analysis Proxy
+Create a background function that runs when code is executed successfully.
 
-## Debug Plan
+**Prompt for LLM (OpenAI/Anthropic)**:
+```text
+Role: Senior Code Reviewer.
+Input: Python Code.
+Task: Analyze for:
+1. Critical Bugs (Syntax errors missed, logic errors).
+2. Time Complexity (Big O).
+3. Code Smells (Global variables, bad naming).
 
-1.  **Verification Steps**
-    *   Trigger a deliberate Python error (e.g., `1/0`) in the sandbox and check the Sentry dashboard.
-    *   Write "smelly" code (global variables, infinite loops) and verify the analysis tool detects it.
-    *   Verify the ElevenLabs agent can reference these errors.
+Output JSON:
+{
+  "score": 1-10,
+  "complexity": "O(n)",
+  "issues": ["List of brief issue descriptions"]
+}
+```
 
-2.  **Common Issues & Fixes**
-    *   *Issue*: Sentry quotas. *Fix*: Use sampling or dev keys.
-    *   *Issue*: Reviewer LLM is too slow. *Fix*: Run analysis asynchronously; don't block the UI.
+**Route: `src/app/api/analysis/review/route.ts`**
+*   Call OpenAI with the prompt above.
+*   Save the result to the `InterviewStore` (so the Agent can access it later via `get_latest_review` tool if we want to expand Phase 3).
+
+### 3. Competency Report
+*   Create a simple UI component `CompetencyReport.tsx` that renders after the interview ends.
+*   Display:
+    *   Total Run Attempts.
+    *   Pass/Fail Status.
+    *   Issues List (from Analysis Proxy).
+
+## Debugging & Verification
+
+### Step 1: The "Infinite Loop" Test
+*   Write a `while True: pass` loop in the editor.
+*   Run the Analysis Proxy manually via Curl.
+*   **Check**: Does the LLM return a warning about "Possible infinite loop" or "Timeout risk"?
+
+### Step 2: Sentry Tag Check
+*   Trigger a runtime error (e.g., `print(undefined_var)`).
+*   Go to Sentry Dashboard.
+*   **Check**: Look for the tag `component: sandbox_execution`. If it's there, our custom instrumentation is working.
+
+### Step 3: Rate Limit Handling
+*   Ensure the Analysis API doesn't run on *every* keystroke.
+*   **Check**: Verify it only runs on "Run Code" click or explicitly every 60 seconds.
