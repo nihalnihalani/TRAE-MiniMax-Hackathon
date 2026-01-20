@@ -151,20 +151,38 @@ export function InterviewAgent() {
     const triggerWizardLine = async () => {
         const text = WIZARD_SCRIPT[scriptIndex % WIZARD_SCRIPT.length];
         console.log("Wizard Mode Triggered:", text);
-
-        // NOTE: ElevenLabs SDK doesn't expose a direct "speak this text" function easily 
-        // when in conversation mode without sending it as a hidden user message or similar hack.
-        // For this demo, we might just log it or assume we'd use a separate TTS call if strictly needed.
-        // However, a simpler approach for "Wizard" in a real interview app is often just 
-        // having the interviewer type into a chat box that speaks.
-
-        // Since the SDK is 'conversational', we can't easily force the agent to say X 
-        // without sending a prompt like "Say exactly this: X".
-
-        // For now, we will just advance the index and log it, assuming the user might 
-        // be simulating the "Happy Path" naturally.
-
+        
+        // Advance index immediately
         setScriptIndex(prev => prev + 1);
+
+        try {
+            // Force "Thinking" state visually
+            setIsThinking(true);
+            setCurrentAction("Wizard speaking...");
+
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) throw new Error("TTS failed");
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            
+            audio.onended = () => {
+                setIsThinking(false);
+                URL.revokeObjectURL(url);
+            };
+            
+            await audio.play();
+            
+        } catch (err) {
+            console.error("Wizard Audio Error:", err);
+            setIsThinking(false);
+        }
     };
 
     const handleStart = async () => {

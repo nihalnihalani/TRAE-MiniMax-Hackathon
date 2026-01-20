@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 import { Logo } from "@/components/ui/Logo";
+import { InterviewReportDialog } from "@/components/interview/InterviewReportDialog";
+import { Shield, AlertTriangle } from "lucide-react";
 
 export default function InterviewPage() {
   const { 
@@ -34,6 +36,7 @@ export default function InterviewPage() {
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
+  const [showReport, setShowReport] = useState(false); // New state
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
@@ -201,7 +204,9 @@ export default function InterviewPage() {
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-2">
             {workspaceId ? (
-                <span className="text-green-500">● Workspace Ready</span>
+                <span className="text-green-500 flex items-center gap-1">
+                    <Shield className="w-3 h-3" /> Shield Active
+                </span>
             ) : (
                 <span className="text-yellow-500 flex items-center gap-1">
                     <Loader2 className="w-3 h-3 animate-spin" /> Initializing
@@ -252,6 +257,7 @@ export default function InterviewPage() {
                         onAnalyze={handleAnalyze}
                         onCodeRabbit={handleCodeRabbit}
                         onAutoFix={handleAutoFix}
+                        onEndInterview={() => setShowReport(true)}
                         isRunning={isRunning}
                         isAnalyzing={isAnalyzing}
                         isCodeRabbitLoading={isCodeRabbitLoading}
@@ -277,6 +283,8 @@ export default function InterviewPage() {
             </ResizablePanel>
         </ResizablePanelGroup>
        </div>
+
+       <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
     </div>
   );
 }
