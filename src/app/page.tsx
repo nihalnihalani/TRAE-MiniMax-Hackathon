@@ -24,7 +24,7 @@ export default function Home() {
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-16 flex flex-col items-center text-center space-y-8">
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-3xl animate-fade-in-up">
+        <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-3xl animate-float">
           The Next Generation of <br/>
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
             Technical Interviews
