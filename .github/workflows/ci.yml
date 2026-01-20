@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "nihals-branch" ]
+    branches: [ "nihals-branch", "main" ]
   pull_request:
-    branches: [ "nihals-branch" ]
+    branches: [ "nihals-branch", "main" ]
 
 jobs:
   build-and-test:
