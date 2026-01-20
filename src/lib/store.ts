@@ -1,11 +1,15 @@
 import { create } from 'zustand'
 
-interface State {
-  bears: number
-  increase: (by: number) => void
+interface InterviewState {
+  code: string;
+  language: string;
+  setCode: (code: string) => void;
+  setLanguage: (lang: string) => void;
 }
 
-export const useStore = create<State>((set) => ({
-  bears: 0,
-  increase: (by) => set((state) => ({ bears: state.bears + by })),
+export const useInterviewStore = create<InterviewState>((set) => ({
+  code: "// Start coding...",
+  language: "python",
+  setCode: (code) => set({ code }),
+  setLanguage: (language) => set({ language }),
 }))
