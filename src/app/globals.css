@@ -87,8 +87,15 @@
     transform: translateY(20px);
   }
 
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
+  .animate-slide-up-fade {
+    animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .animate-gradient-flow {
+    background-size: 200% auto;
+    animation: gradientFlow 3s linear infinite;
   }
 
   @keyframes fadeInUp {
@@ -98,15 +105,26 @@
     }
   }
 
-  @keyframes float {
+  @keyframes slideUpFade {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes gradientFlow {
     0% {
-      transform: translateY(0px);
+      background-position: 0% 50%;
     }
     50% {
-      transform: translateY(-20px);
+      background-position: 100% 50%;
     }
     100% {
-      transform: translateY(0px);
+      background-position: 0% 50%;
     }
   }
 }
