@@ -8,12 +8,25 @@ interface ControlsProps {
   onRun: () => void;
   onAnalyze: () => void;
   onCodeRabbit: () => void;
+  onAutoFix?: () => void;
   isRunning: boolean;
   isAnalyzing: boolean;
   isCodeRabbitLoading: boolean;
+  isFixing?: boolean;
+  hasError?: boolean;
 }
 
-export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzing, isCodeRabbitLoading }: ControlsProps) {
+export function Controls({ 
+    onRun, 
+    onAnalyze, 
+    onCodeRabbit, 
+    onAutoFix, 
+    isRunning, 
+    isAnalyzing, 
+    isCodeRabbitLoading,
+    isFixing,
+    hasError 
+}: ControlsProps) {
   const { isWizardMode, toggleWizardMode, addLog } = useInterviewStore();
 
   const handleDownloadReport = () => {
@@ -37,6 +50,17 @@ export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzin
         <Play className="w-4 h-4 mr-2" fill="currentColor" />
         {isRunning ? "Running..." : "Run Code"}
       </Button>
+
+      {hasError && onAutoFix && (
+        <Button 
+            onClick={onAutoFix} 
+            disabled={isFixing} 
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white animate-pulse"
+        >
+            <Wand2 className="w-4 h-4 mr-2" />
+            {isFixing ? "Agent Fixing..." : "Auto Fix with Agent"}
+        </Button>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Button

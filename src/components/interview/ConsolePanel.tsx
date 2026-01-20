@@ -1,24 +1,65 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Terminal } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Terminal, AlertCircle, Info, Cpu, CheckCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export function ConsolePanel({ output }: { output: string[] }) {
+type LogType = 'stdout' | 'stderr' | 'system' | 'agent';
+
+interface ConsolePanelProps { 
+  output: { type: LogType; content: string }[] 
+}
+
+const LogIcon = ({ type }: { type: LogType }) => {
+    switch (type) {
+        case 'stderr': return <AlertCircle className="w-3 h-3 text-red-500" />;
+        case 'system': return <Info className="w-3 h-3 text-blue-400" />;
+        case 'agent': return <Cpu className="w-3 h-3 text-purple-400 animate-pulse" />;
+        case 'stdout': return <CheckCircle className="w-3 h-3 text-green-500" />;
+        default: return <Terminal className="w-3 h-3" />;
+    }
+};
+
+const LogColor = (type: LogType) => {
+    switch (type) {
+        case 'stderr': return 'text-red-400';
+        case 'system': return 'text-blue-400';
+        case 'agent': return 'text-purple-300';
+        default: return 'text-gray-300';
+    }
+};
+
+export function ConsolePanel({ output }: ConsolePanelProps) {
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [output]);
+
   return (
-    <div className="flex flex-col h-[200px] bg-black border-t border-gray-800">
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 border-b border-gray-800 text-xs font-mono text-gray-400">
+    <div className="flex flex-col h-full bg-[#0c0c0c] border-t border-gray-800 font-mono text-sm shadow-inner">
+      <div className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border-b border-gray-800 text-xs font-semibold text-gray-400 select-none">
         <Terminal className="w-3 h-3" />
-        Console
+        NEURO-LINK CONSOLE
+        <div className="ml-auto flex gap-2">
+            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> ONLINE</div>
+        </div>
       </div>
-      <div className="flex-1 p-4 overflow-auto font-mono text-xs text-gray-300 space-y-1">
+      <div className="flex-1 p-4 overflow-auto space-y-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
         {output.length === 0 ? (
-          <span className="text-gray-600 italic">No output...</span>
+          <div className="flex flex-col items-center justify-center h-full text-gray-700 opacity-50">
+            <Cpu className="w-12 h-12 mb-2" />
+            <span className="text-xs">Awaiting Input...</span>
+          </div>
         ) : (
-          output.map((line, i) => (
-            <div key={i} className="whitespace-pre-wrap border-b border-white/5 pb-1 mb-1 last:border-0">
-                {line}
+          output.map((log, i) => (
+            <div key={i} className={cn("flex items-start gap-2 break-words leading-relaxed animate-in fade-in slide-in-from-bottom-1 duration-200", LogColor(log.type))}>
+                <span className="mt-1 opacity-70 shrink-0 select-none">
+                    <LogIcon type={log.type} />
+                </span>
+                <span className="whitespace-pre-wrap">{log.content}</span>
             </div>
           ))
         )}
+        <div ref={endRef} />
       </div>
     </div>
   );
