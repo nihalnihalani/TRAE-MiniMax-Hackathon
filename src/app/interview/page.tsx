@@ -16,6 +16,7 @@ import { useInterviewStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
+import { Logo } from "@/components/ui/Logo";
 
 export default function InterviewPage() {
   const { 
@@ -194,7 +195,10 @@ export default function InterviewPage() {
   return (
     <div className="h-screen w-full bg-background overflow-hidden flex flex-col">
        <header className="h-12 border-b flex items-center px-4 justify-between bg-card z-10">
-          <div className="font-bold">Daytona Interview Sandbox</div>
+          <div className="font-bold flex items-center gap-2">
+            <Logo size={24} />
+            Daytona Interview Sandbox
+          </div>
           <div className="text-xs text-muted-foreground flex items-center gap-2">
             {workspaceId ? (
                 <span className="text-green-500">● Workspace Ready</span>
