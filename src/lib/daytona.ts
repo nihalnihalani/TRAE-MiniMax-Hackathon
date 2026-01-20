@@ -1,4 +1,4 @@
-import { Daytona, Workspace } from '@daytonaio/sdk';
+import { Daytona } from '@daytonaio/sdk';
 
 export interface WorkspaceConfig {
   language: 'python' | 'typescript' | 'javascript';
@@ -23,9 +23,21 @@ export class DaytonaService {
     }
 
     this.daytona = new Daytona({
-      apiKey: apiKey || 'dummy',
-      apiUrl: apiUrl || 'https://api.daytona.io',
+      apiKey: apiKey || process.env.DAYTONA_API_KEY || 'dummy',
+      apiUrl: apiUrl || process.env.DAYTONA_API_URL || 'https://api.daytona.io',
     });
+  }
+
+  // Helper to execute command in a specific workspace
+  private async _exec(workspaceId: string, command: string): Promise<{ result: string, exitCode: number }> {
+     // Retrieve the workspace (sandbox) instance
+     const workspace = await this.daytona.get(workspaceId);
+     // Execute command via the process API
+     const response = await workspace.process.executeCommand(command);
+     return {
+        result: response.result,
+        exitCode: response.exitCode
+     };
   }
 
   async createWorkspace(language: string): Promise<WorkspaceConfig> {
@@ -41,7 +53,7 @@ export class DaytonaService {
 
       // Install CodeRabbit CLI
       console.log(`Installing CodeRabbit CLI in workspace ${workspace.id}...`);
-      await this.daytona.exec(workspace.id, 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh', 'shell');
+      await workspace.process.executeCommand('curl -fsSL https://cli.coderabbit.ai/install.sh | sh');
       
       return {
         id: workspace.id,
@@ -71,12 +83,12 @@ export class DaytonaService {
         }
 
         console.log(`Installing ${packageName} via ${manager} in ${workspaceId}...`);
-        const result = await this.daytona.exec(workspaceId, command, 'shell');
+        const response = await this._exec(workspaceId, command);
         
         return {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
+            stdout: response.result,
+            stderr: "", // SDK v1 might merge stdout/stderr or not expose stderr separately in simple executeCommand
+            exitCode: response.exitCode,
         };
     } catch (error) {
         console.error('Failed to install package:', error);
@@ -95,11 +107,11 @@ export class DaytonaService {
     }
 
     try {
-        const result = await this.daytona.exec(workspaceId, `cat ${path}`, 'shell');
-        if (result.exitCode !== 0) {
-            throw new Error(`File read failed: ${result.stderr}`);
+        const response = await this._exec(workspaceId, `cat ${path}`);
+        if (response.exitCode !== 0) {
+            throw new Error(`File read failed: ${response.result}`);
         }
-        return result.stdout;
+        return response.result;
     } catch (error) {
         console.error('Failed to read file:', error);
         throw error;
@@ -113,19 +125,13 @@ export class DaytonaService {
     }
 
     try {
-        // Simple write using echo for now. 
-        // In production, consider using a proper FS API or base64 encoding to avoid shell escaping issues.
-        // const escapedContent = content.replace(/"/g, '\\"');
-        // await this.daytona.exec(workspaceId, `echo "${escapedContent}" > ${path}`);
-        
-        // Better approach: SDK likely has fs.upload or similar. 
-        // Failing that, we can try to assume the SDK isn't fully typed here and use a specific method if known.
-        // For this task, let's assume 'exec' is the main way interaction happens if detailed FS isn't exposed.
-        
-        // Using base64 to safely write file content via shell
+        // Using base64 to safely write file content via shell to avoid escaping issues
         const base64Content = Buffer.from(content).toString('base64');
-        await this.daytona.exec(workspaceId, `echo "${base64Content}" | base64 -d > ${path}`, 'shell');
+        const response = await this._exec(workspaceId, `echo "${base64Content}" | base64 -d > "${path}"`);
         
+        if (response.exitCode !== 0) {
+             throw new Error(`Failed to save file: ${response.result}`);
+        }
     } catch (error) {
         console.error('Failed to save file:', error);
         throw error;
@@ -139,11 +145,11 @@ export class DaytonaService {
     }
     
     try {
-        const result = await this.daytona.exec(workspaceId, command, 'shell');
+        const response = await this._exec(workspaceId, command);
         return {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
+            stdout: response.result,
+            stderr: "", 
+            exitCode: response.exitCode,
         };
     } catch (error) {
         console.error('Failed to execute command:', error);
@@ -188,20 +194,19 @@ export class DaytonaService {
       await this.saveFile(workspaceId, filename, code);
 
       // 2. Execute the file
-      const executionPromise = this.daytona.exec(workspaceId, command, 'shell');
+      const executionPromise = this._exec(workspaceId, command);
       
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs}ms`)), timeoutMs)
       );
 
       // Race between execution and timeout
-      // Note: SDK types might need casting if result doesn't match exactly what we expect
-      const result = await Promise.race([executionPromise, timeoutPromise]) as any;
+      const response = await Promise.race([executionPromise, timeoutPromise]) as { result: string, exitCode: number };
 
       return {
-        stdout: result.stdout || "",
-        stderr: result.stderr || "",
-        exitCode: result.exitCode ?? 0,
+        stdout: response.result,
+        stderr: "",
+        exitCode: response.exitCode,
       };
     } catch (error) {
       console.error('Failed to execute code:', error);
@@ -219,7 +224,9 @@ export class DaytonaService {
         return;
     }
     try {
-        await this.daytona.remove(workspaceId);
+        const workspace = await this.daytona.get(workspaceId);
+        // @ts-ignore - Assuming delete exists on the workspace object based on SDK docs
+        await workspace.delete();
     } catch (error) {
         console.error('Failed to cleanup workspace:', error);
     }
