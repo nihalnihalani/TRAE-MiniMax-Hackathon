@@ -43,6 +43,8 @@ export class DaytonaService {
   async createWorkspace(language: string): Promise<WorkspaceConfig> {
     if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
       console.log('Mocking Daytona createWorkspace');
+      // Simulate delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
       return { id: 'mock-ws-123', language: language as any };
     }
 
@@ -59,8 +61,15 @@ export class DaytonaService {
         id: workspace.id,
         language: language as any,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create workspace:', error);
+      
+      // Enhance error message if it looks like a 404 HTML response
+      if (error?.statusCode === 404) {
+        console.error("Daytona API returned 404. This often means DAYTONA_API_URL is pointing to a website instead of the API, or the endpoint is unreachable.");
+        console.error("If running locally without a Daytona server, set NEXT_PUBLIC_USE_MOCK_DAYTONA=true in .env.local");
+      }
+      
       throw error;
     }
   }
