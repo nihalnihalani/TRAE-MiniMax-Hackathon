@@ -38,6 +38,10 @@ export class DaytonaService {
       const workspace = await this.daytona.create({
         language: language,
       });
+
+      // Install CodeRabbit CLI
+      console.log(`Installing CodeRabbit CLI in workspace ${workspace.id}...`);
+      await this.daytona.exec(workspace.id, 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh', 'shell');
       
       return {
         id: workspace.id,
@@ -77,6 +81,24 @@ export class DaytonaService {
     }
   }
 
+  async readFile(workspaceId: string, path: string): Promise<string> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+        console.log(`Mocking readFile: ${path}`);
+        return "def main():\n    print('Hello from mock file')";
+    }
+
+    try {
+        const result = await this.daytona.exec(workspaceId, `cat ${path}`, 'shell');
+        if (result.exitCode !== 0) {
+            throw new Error(`File read failed: ${result.stderr}`);
+        }
+        return result.stdout;
+    } catch (error) {
+        console.error('Failed to read file:', error);
+        throw error;
+    }
+  }
+
   async saveFile(workspaceId: string, path: string, content: string): Promise<void> {
     if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
         console.log(`Mocking saveFile: ${path}`);
@@ -100,6 +122,29 @@ export class DaytonaService {
     } catch (error) {
         console.error('Failed to save file:', error);
         throw error;
+    }
+  }
+
+  async executeCommand(workspaceId: string, command: string): Promise<ExecutionResult> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+        console.log(`Mocking executeCommand: ${command}`);
+        return { stdout: "Mock Command Output", stderr: "", exitCode: 0 };
+    }
+    
+    try {
+        const result = await this.daytona.exec(workspaceId, command, 'shell');
+        return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode,
+        };
+    } catch (error) {
+        console.error('Failed to execute command:', error);
+        return {
+            stdout: "",
+            stderr: error instanceof Error ? error.message : String(error),
+            exitCode: 1
+        };
     }
   }
 
