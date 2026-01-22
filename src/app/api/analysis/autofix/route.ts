@@ -1,19 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { generateAutoFix } from '@/lib/gemini';
 import { daytonaService } from '@/lib/daytona';
+import { isValidCode, isValidLanguage, VALID_LANGUAGES, MAX_CODE_SIZE } from '@/lib/validation';
+import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const { code, error, language, workspaceId } = await req.json();
 
     if (!code || !error) {
-      return NextResponse.json({ error: 'Missing code or error' }, { status: 400 });
+      return errorResponse('Missing code or error', 400, 'MISSING_PARAMS');
+    }
+
+    if (!isValidCode(code)) {
+      return errorResponse(
+        `Invalid code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
+        400,
+        'INVALID_CODE'
+      );
+    }
+
+    if (language && !isValidLanguage(language)) {
+      return errorResponse(
+        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
+        400,
+        'INVALID_LANGUAGE'
+      );
     }
 
     const result = await generateAutoFix(code, error, language || 'python');
 
     if (!result) {
-        return NextResponse.json({ error: 'Failed to generate fix' }, { status: 500 });
+        return errorResponse('Failed to generate fix', 500, 'FIX_GENERATION_FAILED');
     }
 
     const { fixedCode, dependencies } = result;
@@ -30,9 +48,8 @@ export async function POST(req: NextRequest) {
         }
     }
 
-    return NextResponse.json({ fixedCode, installedPackages });
+    return successResponse({ fixedCode, installedPackages });
   } catch (error) {
-    console.error('AutoFix API error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return handleApiError(error, 'AutoFix API Error');
   }
 }

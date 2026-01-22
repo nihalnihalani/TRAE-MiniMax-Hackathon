@@ -396,11 +396,14 @@ describe('DaytonaService', () => {
         .rejects.toThrow('directory traversal');
     });
 
-    it('should reject absolute paths', async () => {
+    it('should allow absolute paths in sandbox environment', async () => {
       process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA = 'false';
 
-      await expect(service.readFile('ws-123', '/etc/passwd'))
-        .rejects.toThrow('absolute paths');
+      // Absolute paths are allowed in isolated sandbox environments
+      const result = await service.readFile('ws-123', '/tmp/test.txt');
+
+      expect(mockDownloadFile).toHaveBeenCalledWith('/tmp/test.txt');
+      expect(result).toBe('file content');
     });
   });
 

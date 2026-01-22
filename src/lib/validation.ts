@@ -31,6 +31,7 @@ export function isValidLanguage(lang: string): lang is ValidLanguage {
 
 /**
  * Validates if the provided path is safe (no directory traversal)
+ * Allows both relative and absolute paths within the sandbox.
  * @param path - The file path to validate
  * @returns true if the path is safe, false otherwise
  */
@@ -42,9 +43,19 @@ export function isValidPath(path: string): boolean {
   if (path.includes('..')) {
     return false;
   }
-  // Check if path starts with '/' (absolute path)
-  if (path.startsWith('/')) {
+  // Check for null bytes (security issue)
+  if (path.includes('\0')) {
     return false;
+  }
+  // Normalize and validate path segments
+  const segments = path.split('/').filter(s => s.length > 0);
+  // Reject paths with suspicious patterns
+  for (const segment of segments) {
+    // Reject hidden files starting with . (except current dir)
+    // Allow .env, .gitignore type files but not .. traversal
+    if (segment === '.' || segment === '..') {
+      return false;
+    }
   }
   return true;
 }
