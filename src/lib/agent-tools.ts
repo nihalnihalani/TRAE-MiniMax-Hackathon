@@ -17,7 +17,8 @@ export const getAgentTools = (workspaceId: string | null) => ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId, path })
             });
-            const data = await response.json();
+            const json = await response.json();
+            const data = json.data || json;
             return data.content || "File not found or empty.";
         } catch (e) {
             console.error(e);
@@ -48,14 +49,15 @@ export const getAgentTools = (workspaceId: string | null) => ({
         if (!workspaceId) return "No active workspace.";
         const code = useInterviewStore.getState().code;
         const language = useInterviewStore.getState().language;
-        
+
         try {
             const response = await fetch('/api/sandbox/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId, code, language })
             });
-            const result = await response.json();
+            const json = await response.json();
+            const result = json.data || json;
             return `Exit Code: ${result.isError ? 1 : 0}\nStdout: ${result.stdout}\nStderr: ${result.stderr}`;
         } catch (e) {
             return "Error executing code.";
@@ -71,7 +73,8 @@ export const getAgentTools = (workspaceId: string | null) => ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId, packageName, manager })
             });
-            const result = await response.json();
+            const json = await response.json();
+            const result = json.data || json;
             if (result.isError) {
                 return `Failed to install ${packageName}: ${result.stderr}`;
             }
@@ -91,7 +94,8 @@ export const getAgentTools = (workspaceId: string | null) => ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId, testCode })
             });
-            const result = await response.json();
+            const json = await response.json();
+            const result = json.data || json;
             return `Test Execution Result:\nExit Code: ${result.isError ? 1 : 0}\nStdout: ${result.stdout}\nStderr: ${result.stderr}`;
         } catch (e) {
             console.error(e);
