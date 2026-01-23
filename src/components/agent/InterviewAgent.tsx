@@ -22,9 +22,30 @@ export function InterviewAgent() {
     const tools = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
 
     const conversation = useConversation({
-        onConnect: () => console.log("Connected to ElevenLabs"),
-        onMessage: (message: any) => console.log("Agent:", message),
-        onError: (err: any) => console.error("Voice Error", err),
+        onConnect: () => {
+            console.log("✅ Connected to ElevenLabs");
+        },
+        onDisconnect: () => {
+            console.log("❌ Disconnected from ElevenLabs");
+        },
+        onMessage: (message: any) => {
+            console.log("📩 Agent message:", message);
+            console.log("Message type:", message.type);
+            console.log("Message content:", message.message || message.text || message);
+        },
+        onError: (err: any) => {
+            console.error("❌ Voice Error:", err);
+            console.error("Error details:", JSON.stringify(err, null, 2));
+            console.error("Error type:", typeof err);
+            console.error("Error message:", err?.message);
+            console.error("Error code:", err?.code);
+        },
+        onStatusChange: (status: any) => {
+            console.log("🔄 Status changed to:", status);
+        },
+        onModeChange: (mode: any) => {
+            console.log("🎭 Mode changed to:", mode);
+        },
         clientTools: tools
     });
 
@@ -46,7 +67,7 @@ export function InterviewAgent() {
     const triggerWizardLine = async () => {
         const text = WIZARD_SCRIPT[scriptIndex % WIZARD_SCRIPT.length];
         console.log("Wizard Mode Triggered:", text);
-        
+
         // Advance index immediately
         setScriptIndex(prev => prev + 1);
 
@@ -66,14 +87,14 @@ export function InterviewAgent() {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const audio = new Audio(url);
-            
+
             audio.onended = () => {
                 setIsThinking(false);
                 URL.revokeObjectURL(url);
             };
-            
+
             await audio.play();
-            
+
         } catch (err) {
             console.error("Wizard Audio Error:", err);
             setIsThinking(false);
@@ -81,26 +102,30 @@ export function InterviewAgent() {
     };
 
     const handleStart = async () => {
+        console.log("🎯 Starting interview session...");
+        console.log("WorkspaceId:", workspaceId);
+        console.log("Agent ID:", process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID);
+
         try {
+            console.log("📱 Requesting microphone access...");
             await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log("✅ Microphone access granted");
+
+            const sessionOptions = {
+                agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "replace-with-agent-id",
+                // NOTE: Removed overrides - agent config should be set on ElevenLabs platform
+                // The overrides were causing immediate disconnection
+            };
+
+            console.log("🚀 Starting ElevenLabs session with options:", sessionOptions);
 
             // ElevenLabs SDK session options - using type assertion via unknown
-            await (startSession as unknown as (options: Record<string, unknown>) => Promise<void>)({
-                agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "replace-with-agent-id",
-                overrides: {
-                    agent: {
-                        language: "en",
-                        firstMessage: isWizardMode
-                            ? WIZARD_SCRIPT[0] // Force first script line
-                            : "Hello! I'm Alex. Ready to code?",
-                        prompt: {
-                            prompt: "You are a helpful interviewer."
-                        }
-                    }
-                }
-            });
+            await (startSession as unknown as (options: Record<string, unknown>) => Promise<void>)(sessionOptions);
+
+            console.log("✅ Session started successfully");
         } catch (err) {
-            console.error("Failed to start conversation:", err);
+            console.error("❌ Failed to start conversation:", err);
+            console.error("Error stack:", (err as Error).stack);
             alert("Microphone access failed or Agent ID missing. Please check your browser permissions and .env settings.");
         }
     };
