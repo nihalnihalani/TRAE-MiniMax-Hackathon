@@ -65,7 +65,7 @@ export const useInterviewStore = create<InterviewState>()(
 
       // Code
       language: 'python',
-      code: "// Write your solution here\nprint('Hello World')",
+      code: "# Write your solution here\nprint('Hello World')",
       workspaceId: null,
       setCode: (code) => set({ code }),
       setLanguage: (language) => set({ language }),
@@ -122,7 +122,7 @@ export const useInterviewStore = create<InterviewState>()(
     }),
     {
       name: 'interview-storage',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<InterviewState>;
@@ -136,6 +136,17 @@ export const useInterviewStore = create<InterviewState>()(
               largePasteEvents: []
             }
           };
+        }
+        if (version === 1) {
+          // Migrate from version 1: Fix JavaScript comments in Python code
+          const code = state.code || '';
+          const language = state.language || 'python';
+          if (language === 'python' && code.includes('// Write your solution here')) {
+            return {
+              ...state,
+              code: "# Write your solution here\nprint('Hello World')"
+            };
+          }
         }
         return state as InterviewState;
       },
