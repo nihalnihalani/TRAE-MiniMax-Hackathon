@@ -54,7 +54,7 @@ interface InterviewState {
 
 export const useInterviewStore = create<InterviewState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Session
       status: 'idle',
       startSession: () => set({ status: 'active' }),
