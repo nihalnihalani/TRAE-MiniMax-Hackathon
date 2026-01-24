@@ -10,7 +10,61 @@ export interface CodeRabbitReview {
   }[];
 }
 
+import { daytonaService } from './daytona';
+
+export interface CodeRabbitReview {
+  summary: string;
+  walkthrough: string[];
+  issues: {
+    severity: 'high' | 'medium' | 'low';
+    message: string;
+    line?: number;
+  }[];
+}
+
 export class CodeRabbitService {
+  async analyzeSandbox(workspaceId: string): Promise<CodeRabbitReview> {
+      const useMock = process.env.NEXT_PUBLIC_USE_MOCK_CODERABBIT !== 'false';
+      
+      if (useMock) {
+          console.log(`[CodeRabbit] Analyzing sandbox ${workspaceId} (MOCK)...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return this.getMockReview("def mock_code(): pass");
+      }
+
+      console.log(`[CodeRabbit] Analyzing sandbox ${workspaceId} (REAL)...`);
+      // Run CodeRabbit CLI in the sandbox
+      // Assuming 'coderabbit' is in PATH or we use full path. 
+      // We run review --plain to get text output.
+      const result = await daytonaService.executeCommand(workspaceId, 'coderabbit review --plain');
+      
+      if (result.exitCode !== 0) {
+          console.error("CodeRabbit CLI failed:", result.stderr);
+          throw new Error(`CodeRabbit CLI failed: ${result.stderr}`);
+      }
+
+      // Parse the plain text output into a structured review
+      // This is a simplification. Real CLI output parsing would depend on the format.
+      // For now, we wrap the raw output in a basic structure.
+      return this.parseCLIOutput(result.stdout);
+  }
+
+  private parseCLIOutput(output: string): CodeRabbitReview {
+      // Basic parsing logic - treat lines as issues or summary
+      // This is a placeholder for actual parsing of the CLI output
+      return {
+          summary: "CodeRabbit Analysis Result",
+          walkthrough: ["Analysis completed via CLI."],
+          issues: [
+              {
+                  severity: 'medium',
+                  message: output.slice(0, 200) + (output.length > 200 ? "..." : ""),
+                  line: 0
+              }
+          ]
+      };
+  }
+
   async analyzeCode(code: string, language: string): Promise<CodeRabbitReview> {
     const useMock = process.env.NEXT_PUBLIC_USE_MOCK_CODERABBIT !== 'false';
 

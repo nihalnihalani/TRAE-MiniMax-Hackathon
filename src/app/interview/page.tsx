@@ -17,13 +17,6 @@ import { Loader2 } from "lucide-react";
 import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 
 export default function InterviewPage() {
-  const [mounted, setMounted] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
-  
   const { 
     code, 
     setCode, 
@@ -33,8 +26,17 @@ export default function InterviewPage() {
     latestReview,
     setReview,
     coderabbitReview,
-    setCodeRabbitReview
+    setCodeRabbitReview,
+    workspaceId,
+    setWorkspaceId
   } = useInterviewStore();
+
+  const [mounted, setMounted] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
+  // const [workspaceId, setWorkspaceId] = useState<string | null>(null); // Use store instead
+  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
@@ -118,7 +120,11 @@ export default function InterviewPage() {
     try {
         const res = await fetch('/api/analysis/coderabbit', {
             method: 'POST',
-            body: JSON.stringify({ code, language: 'python' }),
+            body: JSON.stringify({ 
+                code, 
+                language: 'python',
+                workspaceId // Pass workspaceId to enable sandbox CLI analysis
+            }),
         });
         const data = await res.json();
         setCodeRabbitReview(data);

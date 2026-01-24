@@ -19,8 +19,10 @@ interface InterviewState {
   // Code
   language: string; 
   code: string;
+  workspaceId: string | null;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
+  setWorkspaceId: (id: string | null) => void;
   
   // Console
   consoleOutput: string[];
@@ -52,8 +54,10 @@ export const useInterviewStore = create<InterviewState>()(
       // Code
       language: 'python',
       code: "// Write your solution here\nprint('Hello World')",
+      workspaceId: null,
       setCode: (code) => set({ code }),
       setLanguage: (language) => set({ language }),
+      setWorkspaceId: (id) => set({ workspaceId: id }),
 
       // Console
       consoleOutput: [],
