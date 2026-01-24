@@ -116,13 +116,25 @@ export default function InterviewPage() {
     try {
         const res = await fetch('/api/analysis/autofix', {
             method: 'POST',
-            body: JSON.stringify({ code, error: lastError, language: 'python' })
+            body: JSON.stringify({ 
+                code, 
+                error: lastError, 
+                language: 'python',
+                workspaceId
+            })
         });
         const data = await res.json();
         
         if (data.fixedCode) {
             setCode(data.fixedCode);
             addLog("✨ Agent applied fix to code.", 'agent');
+
+            if (data.installedPackages && data.installedPackages.length > 0) {
+                data.installedPackages.forEach((pkg: string) => {
+                    addLog(`📦 Agent installed ${pkg}`, 'agent');
+                });
+            }
+
             setLastError(null); // Clear error state
         } else {
             addLog("Agent could not determine a fix.", 'system');
