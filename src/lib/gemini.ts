@@ -3,8 +3,8 @@ import * as Sentry from "@sentry/nextjs";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// Using 'gemini-2.0-flash' for speed, or 'gemini-1.5-pro' for reasoning
-const MODEL_NAME = "gemini-1.5-pro"; 
+// Using 'gemini-3-pro' for advanced reasoning as requested
+const MODEL_NAME = "gemini-3-pro"; 
 
 export const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
