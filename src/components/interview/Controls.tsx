@@ -1,16 +1,18 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Play, Sparkles, Wand2 } from "lucide-react";
+import { Play, Sparkles, Wand2, Rabbit } from "lucide-react";
 import { useInterviewStore } from '@/lib/store';
 
 interface ControlsProps {
   onRun: () => void;
   onAnalyze: () => void;
+  onCodeRabbit: () => void;
   isRunning: boolean;
   isAnalyzing: boolean;
+  isCodeRabbitLoading: boolean;
 }
 
-export function Controls({ onRun, onAnalyze, isRunning, isAnalyzing }: ControlsProps) {
+export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzing, isCodeRabbitLoading }: ControlsProps) {
   const { isWizardMode, toggleWizardMode } = useInterviewStore();
 
   return (
@@ -24,15 +26,27 @@ export function Controls({ onRun, onAnalyze, isRunning, isAnalyzing }: ControlsP
         {isRunning ? "Running..." : "Run Code"}
       </Button>
       
-      <Button 
-        onClick={onAnalyze} 
-        disabled={isAnalyzing}
-        variant="secondary"
-        className="w-full"
-      >
-        <Sparkles className="w-4 h-4 mr-2" />
-        {isAnalyzing ? "Analyzing..." : "Review Code"}
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button 
+            onClick={onAnalyze} 
+            disabled={isAnalyzing}
+            variant="secondary"
+            className="w-full"
+        >
+            <Sparkles className="w-4 h-4 mr-2" />
+            {isAnalyzing ? "Gemini..." : "Quick Review"}
+        </Button>
+
+        <Button 
+            onClick={onCodeRabbit} 
+            disabled={isCodeRabbitLoading}
+            variant="outline"
+            className="w-full border-orange-500/50 text-orange-500 hover:bg-orange-500/10 hover:text-orange-400"
+        >
+            <Rabbit className="w-4 h-4 mr-2" />
+            {isCodeRabbitLoading ? "Deep..." : "Deep Review"}
+        </Button>
+      </div>
 
       <div className="pt-4 border-t border-gray-800 mt-2">
          <Button 

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { CodeRabbitReview } from './coderabbit';
 
 interface ReviewResult {
   score: number;
@@ -29,6 +30,10 @@ interface InterviewState {
   // Analysis
   latestReview: ReviewResult | null;
   setReview: (review: ReviewResult | null) => void;
+  
+  // CodeRabbit Analysis
+  coderabbitReview: CodeRabbitReview | null;
+  setCodeRabbitReview: (review: CodeRabbitReview | null) => void;
 
   // Demo / Wizard Mode
   isWizardMode: boolean;
@@ -58,6 +63,10 @@ export const useInterviewStore = create<InterviewState>()(
       // Analysis
       latestReview: null,
       setReview: (review) => set({ latestReview: review }),
+
+      // CodeRabbit Analysis
+      coderabbitReview: null,
+      setCodeRabbitReview: (review) => set({ coderabbitReview: review }),
 
       // Wizard Mode
       isWizardMode: false,

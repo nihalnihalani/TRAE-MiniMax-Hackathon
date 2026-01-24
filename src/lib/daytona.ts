@@ -35,8 +35,6 @@ export class DaytonaService {
     }
 
     try {
-      // Create a workspace with the requested language
-      // Note: This is a simplified example. You might need to specify a repository or image.
       const workspace = await this.daytona.create({
         language: language,
       });
@@ -51,10 +49,44 @@ export class DaytonaService {
     }
   }
 
-  async executeCode(workspaceId: string, code: string, language: string): Promise<ExecutionResult> {
+  async installDependencies(workspaceId: string, command: string): Promise<ExecutionResult> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+        console.log(`Mocking installDependencies: ${command}`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return { stdout: "Dependencies installed", stderr: "", exitCode: 0 };
+    }
+
+    try {
+        // Run the installation command
+        // Note: Using 'exec' as a generic command runner here, assuming SDK supports it or similar
+        // Adjust based on actual SDK capability if 'exec' is purely for code. 
+        // Typically daytona.exec runs in the default shell.
+        const result = await this.daytona.exec(workspaceId, command, 'shell');
+        return {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode: result.exitCode,
+        };
+    } catch (error) {
+        console.error('Failed to install dependencies:', error);
+        return {
+            stdout: "",
+            stderr: error instanceof Error ? error.message : String(error),
+            exitCode: 1
+        };
+    }
+  }
+
+  async executeCode(
+      workspaceId: string, 
+      code: string, 
+      language: string, 
+      timeoutMs: number = 30000
+    ): Promise<ExecutionResult> {
+    
     if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
       console.log('Mocking Daytona executeCode');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate latency
+      await new Promise(resolve => setTimeout(resolve, 500)); 
       return { 
         stdout: `Mock Output for ${language}:\n${code}\nResult: Success`, 
         stderr: "", 
@@ -63,9 +95,15 @@ export class DaytonaService {
     }
 
     try {
-      // Execute code in the workspace
-      // The SDK method might differ slightly depending on version, assuming exec or similar
-      const result = await this.daytona.exec(workspaceId, code, language);
+      const executionPromise = this.daytona.exec(workspaceId, code, language);
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs}ms`)), timeoutMs)
+      );
+
+      // Race between execution and timeout
+      const result = await Promise.race([executionPromise, timeoutPromise]);
+
       return {
         stdout: result.stdout,
         stderr: result.stderr,
@@ -73,11 +111,10 @@ export class DaytonaService {
       };
     } catch (error) {
       console.error('Failed to execute code:', error);
-      // Return error as result instead of throwing, so UI can show it
       return {
         stdout: "",
         stderr: error instanceof Error ? error.message : String(error),
-        exitCode: 1
+        exitCode: 1 // Treat timeout or error as failure
       };
     }
   }
