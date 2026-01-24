@@ -4,7 +4,7 @@
 
 ## 💡 Concept
 
-This project extends the **10xhr.ai winner's approach** by adding an **actual coding assessment**.
+This project extends the **winner's approach** by adding an **actual coding assessment**.
 Candidates receive a voice-guided technical interview where they code in a **Daytona sandbox** while an **ElevenLabs agent** asks questions based on their real-time code changes. **Sentry** monitors for runtime errors, and **CodeRabbit** evaluates code quality.
 
 ## ⚙️ Technical Flow
@@ -56,17 +56,16 @@ sequenceDiagram
 
 | Component | Tech | Icon |
 |-----------|------|------|
-| **Frontend** | **Next.js 16** | ![Next.js](https://img.icons8.com/?size=48&id=yUdJlcKanVbh&format=png) |
-| | **React 19** | ![React](https://img.icons8.com/?size=48&id=123603&format=png) |
-| | **Tailwind CSS** | ![Tailwind](https://img.icons8.com/?size=48&id=4PiNHtUJVbLs&format=png) |
-| **Infrastructure** | **Daytona SDK** | ![Daytona](https://img.icons8.com/?size=48&id=13051&format=png) |
-| | **Docker** | ![Docker](https://img.icons8.com/?size=48&id=22813&format=png) |
-| **AI & Voice** | **ElevenLabs** | ![ElevenLabs](https://img.icons8.com/?size=48&id=12798&format=png) |
-| | **Gemini 3 Pro** | ![Gemini](https://img.icons8.com/?size=48&id=LlgB5a8aAr0G&format=png) |
-| **Analysis** | **CodeRabbit** | ![CodeRabbit](https://img.icons8.com/?size=48&id=16082&format=png) |
-| **Monitoring** | **Sentry** | ![Sentry](https://img.icons8.com/?size=48&id=13758&format=png) |
+| **Frontend** | **Next.js 16** | <img src="/icons/nextjs.png" width="48" alt="Next.js" /> |
+| | **React 19** | <img src="/icons/react.png" width="48" alt="React" /> |
+| | **Tailwind CSS** | <img src="/icons/tailwind.png" width="48" alt="Tailwind" /> |
+| **Infrastructure** | **Daytona SDK** | <img src="/icons/daytona.png" width="48" alt="Daytona" /> |
+| | **Docker** | <img src="/icons/docker.png" width="48" alt="Docker" /> |
+| **AI & Voice** | **ElevenLabs** | <img src="/icons/elevenlabs.png" width="48" alt="ElevenLabs" /> |
+| | **Gemini 3 Pro** | <img src="/icons/gemini.png" width="48" alt="Gemini" /> |
+| **Analysis** | **CodeRabbit** | <img src="/icons/coderabbit.png" width="48" alt="CodeRabbit" /> |
+| **Monitoring** | **Sentry** | <img src="/icons/sentry.png" width="48" alt="Sentry" /> |
 
-*Icons provided by [Icons8](https://icons8.com).*
 
 ## 🚀 Quick Start
 

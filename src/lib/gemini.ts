@@ -24,10 +24,17 @@ ${code}
 
 Instructions:
 1. Analyze the error and the code.
-2. Provide ONLY the full fixed code block.
-3. Do not include markdown formatting like \`\`\`python or \`\`\`.
-4. If imports are missing, add them.
-5. If syntax is wrong, fix it.
+2. Determine if any external libraries/packages are missing.
+3. Provide the full fixed code block.
+4. Provide a list of missing dependencies (e.g. ["numpy", "pandas"]) if any.
+5. If imports are missing, add them to the code.
+6. If syntax is wrong, fix it.
+
+Output JSON only:
+{
+  "fixedCode": "Full fixed code string here",
+  "dependencies": ["package_name1", "package_name2"]
+}
             `;
             
             span.setAttribute("ai.model_id", MODEL_NAME);
@@ -35,8 +42,19 @@ Instructions:
             const text = result.response.text();
             
             // Clean up potentially wrapped code
-            let cleanCode = text.replace(/```[a-z]*\n/g, '').replace(/```/g, '').trim();
-            return cleanCode;
+            let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            try {
+                const json = JSON.parse(cleanText);
+                return {
+                    fixedCode: json.fixedCode || code,
+                    dependencies: Array.isArray(json.dependencies) ? json.dependencies : []
+                };
+            } catch (e) {
+                console.error("Failed to parse Gemini AutoFix response", text);
+                // Fallback to text if JSON parse fails (backward compatibility attempt or just fail)
+                return null;
+            }
         } catch (error) {
             Sentry.captureException(error);
             console.error("AutoFix failed", error);
