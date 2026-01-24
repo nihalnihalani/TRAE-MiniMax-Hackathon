@@ -9,6 +9,7 @@ interface ControlsProps {
   onAnalyze: () => void;
   onCodeRabbit: () => void;
   onAutoFix?: () => void;
+  onEndInterview: () => void; // New prop
   isRunning: boolean;
   isAnalyzing: boolean;
   isCodeRabbitLoading: boolean;
@@ -21,24 +22,14 @@ export function Controls({
     onAnalyze, 
     onCodeRabbit, 
     onAutoFix, 
+    onEndInterview,
     isRunning, 
     isAnalyzing, 
     isCodeRabbitLoading,
     isFixing,
     hasError 
 }: ControlsProps) {
-  const { isWizardMode, toggleWizardMode, addLog } = useInterviewStore();
-
-  const handleDownloadReport = () => {
-    try {
-      const report = reportGenerator.generateReport(45); // 45 min default duration
-      reportGenerator.downloadReport(report);
-      addLog('✅ Interview report generated and downloaded!');
-    } catch (error) {
-      console.error('Failed to generate report:', error);
-      addLog('❌ Failed to generate report');
-    }
-  };
+  const { isWizardMode, toggleWizardMode } = useInterviewStore();
 
   return (
     <div className="flex flex-col gap-2 p-4">
@@ -85,12 +76,12 @@ export function Controls({
       </div>
 
       <Button
-        variant="outline"
-        className="w-full border-blue-500/50 text-blue-500 hover:bg-blue-500/10"
-        onClick={handleDownloadReport}
+        variant="destructive"
+        className="w-full mt-4"
+        onClick={onEndInterview}
       >
         <FileDown className="w-4 h-4 mr-2" />
-        End Interview & Report
+        End Interview
       </Button>
 
       <div className="pt-4 border-t border-gray-800 mt-2">
