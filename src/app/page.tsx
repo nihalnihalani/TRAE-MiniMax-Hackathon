@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderGit2, Mic, BrainCircuit, Terminal, ArrowRight } from "lucide-react";
-import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
+import { Logo } from "@/components/ui/Logo";
 
 export default function Home() {
   return (
@@ -10,7 +9,7 @@ export default function Home() {
       <header className="border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="font-bold text-xl flex items-center gap-2">
-            <FolderGit2 className="w-6 h-6" />
+            <Logo size={32} />
             Daytona Interview Sandbox
           </div>
           <div className="flex gap-4">
