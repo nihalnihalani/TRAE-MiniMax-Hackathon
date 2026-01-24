@@ -3,6 +3,8 @@
 import { FolderGit2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeEditor } from "@/components/editor/CodeEditor";
+import { InterviewAgent } from "@/components/agent/InterviewAgent";
+import { useInterviewStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 
 export default function TestPage() {
@@ -10,6 +12,7 @@ export default function TestPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState("");
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const { setCode } = useInterviewStore();
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
@@ -56,16 +59,29 @@ export default function TestPage() {
     }
   };
 
+  const handleEditorChange = (value: string | undefined) => {
+    setCode(value || "");
+  };
+
   if (!mounted) return null;
 
   return (
     <div className="p-8 space-y-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold flex items-center gap-2">
         <FolderGit2 className="w-8 h-8" />
-        Phase 2: Daytona Integration Test
+        Phase 3: ElevenLabs & Daytona Integration
       </h1>
 
       <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Interview Agent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InterviewAgent />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Python Editor (Workspace: {workspaceId || "Initializing..."})</CardTitle>
@@ -75,6 +91,7 @@ export default function TestPage() {
                language="python"
                initialCode="print('Hello from Daytona Sandbox!')"
                onRun={handleRun}
+               onChange={handleEditorChange}
                isRunning={isRunning}
              />
           </CardContent>
