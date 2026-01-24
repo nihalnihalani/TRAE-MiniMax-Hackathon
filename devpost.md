@@ -178,7 +178,7 @@ Most “practice platforms” optimize for pass/fail on hidden tests. That helps
 - Remote interviewing has raised fairness and integrity concerns—so candidates need **realistic practice** and companies need **repeatable evaluation**.
 - AI tools changed the landscape; candidates need guidance on *how to think* and *how to communicate* their reasoning, not just how to get AC.
 
-### 3. Secure Code Execution with Daytona Sandboxes
+### 4. Secure Code Execution with Daytona Sandboxes
 Every candidate gets an ephemeral, secure **Daytona** workspace:
 - **Real Linux containers** with full isolation
 - **Multi-language support**: Python, TypeScript, JavaScript
@@ -188,7 +188,7 @@ Every candidate gets an ephemeral, secure **Daytona** workspace:
 - **Multi-file project** support
 - **Auto-cleanup** after sessions
 
-### 4. Advanced AI Reasoning Engine
+### 5. Advanced AI Reasoning Engine
 
 **Multi-Layer Analysis Pipeline:**
 ```
@@ -216,7 +216,7 @@ Every candidate gets an ephemeral, secure **Daytona** workspace:
 - Auto-fix syntax and logic errors on request
 - Thread-safe operations with `async-mutex`
 
-### 5. Intelligent Candidate Profiling
+### 6. Intelligent Candidate Profiling
 - Tracks strengths, weaknesses, and problem-solving patterns
 - Adaptive hint system (max 3 hints per session)
 - Real-time encouragement detection
@@ -227,7 +227,7 @@ Every candidate gets an ephemeral, secure **Daytona** workspace:
   - Communication
   - Optimization Skills
 
-### 6. Integrity Shield - Anti-Cheat System
+### 7. Integrity Shield - Anti-Cheat System
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  INTEGRITY MONITORING                    │
@@ -241,13 +241,13 @@ Every candidate gets an ephemeral, secure **Daytona** workspace:
 ```
 
 
-### 7. Comprehensive Report Generation
+### 8. Comprehensive Report Generation
 - **Interview Reports**: Executive summary, technical breakdown, hiring recommendation
 - **Mock Interview Feedback**: Skill assessment, improvement areas, practice recommendations
 - **Markdown formatting** with structured sections
 - **Integrity table** with evidence
 
-### 8. Production-Ready Infrastructure
+### 9. Production-Ready Infrastructure
 - **Sentry** integration for error tracking and performance monitoring
 - **Vitest** test suite with 95%+ coverage
 - **Rate limiting** with token bucket algorithm
