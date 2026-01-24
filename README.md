@@ -23,13 +23,15 @@ Instead of just checking if the code passes tests, this system observes *how* th
 
 - **🗣️ Conversational AI Interviewer**: Powered by ElevenLabs, the agent speaks naturally, asks follow-up questions, and responds to the candidate's actions.
 - **⚡ Live Daytona Sandbox**: A fully functional, ephemeral coding environment created instantly for each interview session. Supports real-time file I/O and command execution.
+- **🛡️ Integrity Shield**: Built-in anti-cheat detection that tracks tab focus loss ("blur events") and suspicious paste operations.
+- **📊 Comprehensive Reports**: Generates a final "Hire/No Hire" recommendation based on code quality, integrity score, and completion time.
+- **🧙‍♂️ Wizard Mode (Demo)**: A fallback control system that allows a human operator to force specific voice lines via `Ctrl+Shift+X`, ensuring perfect demos even if the AI hallucinates.
 - **🧠 Advanced Reasoning Engine**:
   - **Static Analysis**: Uses regex and heuristics to instantly detect complexity issues (nested loops) and security risks.
   - **AI Analysis**: Uses Gemini 3 Pro to understand code logic and generate "Senior Engineer" level feedback.
   - **CodeRabbit Integration**: Deep code reviews focusing on best practices and potential bugs.
 - **🛠️ Autonomous Auto-Fix**: The agent can detect syntax/runtime errors and, upon request, autonomously patch the code and install missing dependencies (e.g., `pip install numpy`).
 - **🛡️ Real-time Monitoring**: Sentry integration tracks exceptions and performance bottlenecks during the interview process.
-- **📊 Competency Reporting**: Generates a detailed report of the candidate's strengths, weaknesses, and problem-solving patterns.
 
 ## 🏗️ Architecture
 
@@ -80,18 +82,16 @@ A detailed overview of the codebase organization:
 │   ├── app/                 # Next.js App Router
 │   │   ├── api/             # Backend API Routes
 │   │   │   ├── analysis/    # Endpoints for Gemini/CodeRabbit analysis
-│   │   │   │   ├── autofix/ # Autonomous code repair & dependency installer
-│   │   │   │   └── review/  # General code review endpoint
-│   │   │   └── sandbox/     # Daytona workspace management (create, execute)
+│   │   │   ├── sandbox/     # Daytona workspace management (create, execute)
+│   │   │   └── tts/         # Direct Text-to-Speech API for Wizard Mode
 │   │   ├── interview/       # Main Interview Interface Page
 │   │   └── page.tsx         # Landing Page
 │   ├── components/          # React Components
 │   │   ├── agent/           # Voice Agent UI (Visualizer, Status)
 │   │   ├── analysis/        # Review Results & Metrics Panels
 │   │   ├── editor/          # Monaco Editor wrapped with Daytona sync
-│   │   └── interview/       # Dashboard layout (Console, Controls)
+│   │   └── interview/       # Dashboard layout (Console, Controls, Reports)
 │   └── lib/                 # Core Logic & Services
-│       ├── agent-reasoning.ts # Heuristic rule engine for agent behavior
 │       ├── daytona.ts       # Daytona SDK wrapper for workspace management
 │       ├── gemini.ts        # Google Gemini AI integration
 │       ├── coderabbit.ts    # CodeRabbit integration service
@@ -142,6 +142,7 @@ Add the following keys to your `.env.local`:
 | `DAYTONA_API_URL` | URL for Daytona Server (default: `https://api.daytona.io`) | ✅ |
 | `GEMINI_API_KEY` | Google Gemini API Key for reasoning | ✅ |
 | `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` | Public Agent ID for the Voice Interface | ✅ |
+| `ELEVENLABS_API_KEY` | Private API Key for TTS (Wizard Mode) | ✅ |
 | `SENTRY_AUTH_TOKEN` | Sentry Auth Token for monitoring | ❌ |
 | `NEXT_PUBLIC_USE_MOCK_DAYTONA` | Set to `true` to simulate Daytona without Docker | ❌ |
 | `NEXT_PUBLIC_USE_MOCK_CODERABBIT`| Set to `true` to mock CodeRabbit responses | ❌ |
@@ -155,6 +156,15 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## 🧙‍♂️ Wizard Mode (For Demos)
+
+**Goal**: Deliver a flawless demo presentation even if the AI is unpredictable.
+
+1.  Enable "Wizard Mode" in the UI footer.
+2.  Press **`Ctrl+Shift+X`** at any time.
+3.  The system will bypass the conversational agent logic and force the voice to read the next line from the pre-defined script in `InterviewAgent.tsx`.
+4.  This uses the direct `/api/tts` endpoint for low-latency playback.
 
 ## 🛠️ Technology Stack
 
