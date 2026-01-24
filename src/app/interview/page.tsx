@@ -4,7 +4,7 @@ import {
   ResizableHandle, 
   ResizablePanel, 
   ResizablePanelGroup 
-} from "@/components/ui/resizable"; // We need to add this component first
+} from "@/components/ui/resizable";
 import { ProblemDescription } from "@/components/interview/ProblemDescription";
 import { ConsolePanel } from "@/components/interview/ConsolePanel";
 import { Controls } from "@/components/interview/Controls";
@@ -14,12 +14,15 @@ import { AnalysisPanel } from "@/components/analysis/AnalysisPanel";
 import { useInterviewStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 
 export default function InterviewPage() {
   const [mounted, setMounted] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
   
   const { 
     code, 
@@ -28,7 +31,9 @@ export default function InterviewPage() {
     addLog, 
     clearLogs,
     latestReview,
-    setReview
+    setReview,
+    coderabbitReview,
+    setCodeRabbitReview
   } = useInterviewStore();
 
   useEffect(() => {
@@ -89,6 +94,7 @@ export default function InterviewPage() {
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
+    setActiveTab('gemini');
     setReview(null);
     try {
       const res = await fetch('/api/analysis/review', {
@@ -102,6 +108,25 @@ export default function InterviewPage() {
       addLog("Analysis failed.");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleCodeRabbit = async () => {
+    setIsCodeRabbitLoading(true);
+    setActiveTab('coderabbit');
+    setCodeRabbitReview(null);
+    try {
+        const res = await fetch('/api/analysis/coderabbit', {
+            method: 'POST',
+            body: JSON.stringify({ code, language: 'python' }),
+        });
+        const data = await res.json();
+        setCodeRabbitReview(data);
+    } catch (err) {
+        console.error(err);
+        addLog("CodeRabbit Analysis failed.");
+    } finally {
+        setIsCodeRabbitLoading(false);
     }
   };
 
@@ -162,12 +187,18 @@ export default function InterviewPage() {
                     <Controls 
                         onRun={() => handleRun(code)} 
                         onAnalyze={handleAnalyze}
+                        onCodeRabbit={handleCodeRabbit}
                         isRunning={isRunning}
                         isAnalyzing={isAnalyzing}
+                        isCodeRabbitLoading={isCodeRabbitLoading}
                     />
 
                     <div className="flex-1 overflow-y-auto p-4">
-                        <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
+                        {activeTab === 'gemini' ? (
+                            <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
+                        ) : (
+                            <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
+                        )}
                     </div>
                 </div>
             </ResizablePanel>
