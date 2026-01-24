@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/ui/Logo";
+import { Mic, BrainCircuit, Terminal, ArrowRight } from "lucide-react";
+import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
 
 export default function Home() {
   return (
