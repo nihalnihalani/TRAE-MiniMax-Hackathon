@@ -1,34 +1,47 @@
-import { NextResponse } from 'next/server';
 import { daytonaService } from '@/lib/daytona';
 import * as Sentry from "@sentry/nextjs";
+import { isValidWorkspaceId, isValidCode, MAX_CODE_SIZE } from '@/lib/validation';
+import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { workspaceId, testCode } = body;
+    const { workspaceId, testCode, language } = body;
 
     if (!workspaceId || !testCode) {
-      return NextResponse.json({ error: 'Workspace ID and test code are required' }, { status: 400 });
+      return errorResponse('Workspace ID and test code are required', 400, 'MISSING_PARAMS');
     }
 
-    // 1. Save the test code to a hidden file
-    const testFileName = '_agent_test.py';
-    await daytonaService.saveFile(workspaceId, testFileName, testCode);
+    if (!isValidWorkspaceId(workspaceId)) {
+      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
+    }
 
-    // 2. Execute the test file
-    const result = await daytonaService.executeCommand(workspaceId, `python ${testFileName}`);
-    
-    // We don't necessarily treat non-zero exit code as a server error here, 
+    if (!isValidCode(testCode)) {
+      return errorResponse(
+        `Invalid test code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
+        400,
+        'INVALID_CODE'
+      );
+    }
+
+    // Use codeRun for direct execution (no file needed for tests)
+    // This is cleaner and doesn't leave test files behind
+    const result = await daytonaService.executeCode(
+      workspaceId,
+      testCode,
+      language || 'python',
+      60000 // 60 second timeout for tests
+    );
+
+    // We don't treat non-zero exit code as a server error here,
     // as it might just mean tests failed.
-    
-    return NextResponse.json({
-        stdout: result.stdout,
-        stderr: result.stderr,
-        isError: result.exitCode !== 0
+    return successResponse({
+      stdout: result.stdout,
+      stderr: result.stderr,
+      isError: result.exitCode !== 0,
     });
   } catch (error) {
-    console.error('API Agent Test Error:', error);
     Sentry.captureException(error);
-    return NextResponse.json({ error: 'Failed to run agent test' }, { status: 500 });
+    return handleApiError(error, 'API Agent Test Error');
   }
 }

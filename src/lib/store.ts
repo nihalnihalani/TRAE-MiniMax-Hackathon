@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { CodeRabbitReview } from './coderabbit';
+import { LARGE_PASTE_THRESHOLD } from './constants';
 
 interface ReviewResult {
   score: number;
+  security_score?: number;
   complexity: string;
   issues: string[];
   reasoning_trace: string;
@@ -97,13 +99,13 @@ export const useInterviewStore = create<InterviewState>()(
         }
       })),
       addPasteEvent: (length) => set((state) => {
-        const isLarge = length > 50;
+        const isLarge = length > LARGE_PASTE_THRESHOLD;
         return {
             integrity: {
                 ...state.integrity,
                 pasteCount: state.integrity.pasteCount + 1,
-                largePasteEvents: isLarge 
-                    ? [...state.integrity.largePasteEvents, { timestamp: Date.now(), length }] 
+                largePasteEvents: isLarge
+                    ? [...state.integrity.largePasteEvents, { timestamp: Date.now(), length }]
                     : state.integrity.largePasteEvents
             }
         };
@@ -111,7 +113,7 @@ export const useInterviewStore = create<InterviewState>()(
       getIntegrityReport: () => {
         const state = get();
         const { blurCount, pasteCount, largePasteEvents } = state.integrity;
-        return `Integrity Report: User has left the tab ${blurCount} times. Detected ${pasteCount} paste events, with ${largePasteEvents.length} large pastes (>50 chars).`;
+        return `Integrity Report: User has left the tab ${blurCount} times. Detected ${pasteCount} paste events, with ${largePasteEvents.length} large pastes (>${LARGE_PASTE_THRESHOLD} chars).`;
       },
 
       // Wizard Mode
@@ -120,12 +122,28 @@ export const useInterviewStore = create<InterviewState>()(
     }),
     {
       name: 'interview-storage',
+      version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ 
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<InterviewState>;
+        if (version === 0) {
+          // Migrate from version 0 (no integrity field)
+          return {
+            ...state,
+            integrity: state.integrity || {
+              blurCount: 0,
+              pasteCount: 0,
+              largePasteEvents: []
+            }
+          };
+        }
+        return state as InterviewState;
+      },
+      partialize: (state) => ({
         code: state.code,
         language: state.language,
         isWizardMode: state.isWizardMode // Persist wizard mode preference
-      }), 
+      }),
     }
   )
 );
