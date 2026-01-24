@@ -1,7 +1,7 @@
 # Phase 1: Project Setup & Infrastructure
 
 ## Goal
-Initialize the repository with a robust Next.js 14+ (App Router) architecture, ensuring all necessary dependencies for Voice AI, Code Editing, and Sandbox management are correctly installed and configured.
+Initialize the repository with a robust Next.js 14+ (App Router) architecture, ensuring all necessary dependencies for Voice AI, Code Editing, and Sandbox management are correctly installed and configured, leveraging the latest **2025/2026** toolset.
 
 ## Detailed Implementation Steps
 
@@ -10,7 +10,7 @@ Initialize the repository with a robust Next.js 14+ (App Router) architecture, e
 *   **Target Directory Structure**:
     ```text
     /
-    ├── .env.local              # Secrets (OPENAI_KEY, ELEVENLABS_KEY, etc.)
+    ├── .env.local              # Secrets (GEMINI_API_KEY, DAYTONA_API_KEY, etc.)
     ├── next.config.js          # Next.js config
     ├── tailwind.config.ts      # UI styling config
     ├── src/
@@ -25,13 +25,14 @@ Initialize the repository with a robust Next.js 14+ (App Router) architecture, e
     │   │   └── agent/          # AudioVisualizer, StatusIndicators
     │   ├── lib/
     │   │   ├── daytona.ts      # Daytona SDK wrapper / API service
+    │   │   ├── gemini.ts       # Google Generative AI Service
     │   │   ├── store.ts        # Zustand state store
     │   │   └── utils.ts        # CN helper, formatters
     │   └── types/              # TS Interfaces (InterviewState, SandboxResponse)
     ```
 
 ### 2. Dependency Installation
-Execute the following to install locked versions of critical packages:
+Execute the following to install locked versions of critical packages (updated for 2026 stack):
 
 ```bash
 # UI & Icons
@@ -44,15 +45,14 @@ npm install zustand
 npm install @monaco-editor/react
 
 # AI & Voice
-npm install @elevenlabs/react  # Official React SDK (prefer over generic client for hooks)
-npm install openai             # For "CodeRabbit" analysis proxy
+npm install @elevenlabs/react@latest  # Must be >= 0.13.0 for Multimodal features
+npm install @google/generative-ai     # For Gemini 3 Pro
 
 # Monitoring
 npm install @sentry/nextjs
 
 # Sandbox (Daytona)
-# Check for official SDK, if not available use axios for REST API
-npm install axios
+npm install @daytonaio/sdk            # Official SDK for programmatic workspaces
 ```
 
 ### 3. Configuration Setup
@@ -86,8 +86,8 @@ NEXT_PUBLIC_USE_MOCK_DAYTONA=true  # Set to false when real API is ready
 NEXT_PUBLIC_ELEVENLABS_AGENT_ID=...
 NEXT_PUBLIC_ELEVENLABS_API_KEY=... # Only if needed client-side (prefer server proxy)
 
-# Analysis
-OPENAI_API_KEY=sk-...
+# Analysis (Gemini 3)
+GEMINI_API_KEY=AIza...
 
 # Monitoring
 SENTRY_DSN=...
@@ -96,9 +96,9 @@ SENTRY_DSN=...
 ## Debugging & Verification
 
 ### Step 1: Dependency Conflict Check
-Run `npm ls` to ensure no peer dependency warnings, especially between React versions and `@monaco-editor/react`.
+Run `npm ls` to ensure no peer dependency warnings.
 *   **Command**: `npm ls --depth=0`
-*   **Expected**: No "UNMET PEER DEPENDENCY" errors.
+*   **Expected**: No "UNMET PEER DEPENDENCY" errors. Specifically check `@elevenlabs/react` version.
 
 ### Step 2: Smoke Test Components
 Create a temporary page `src/app/test/page.tsx`:
