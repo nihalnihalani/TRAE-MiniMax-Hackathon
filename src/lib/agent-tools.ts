@@ -16,7 +16,6 @@ const wrapTool = (name: string, fn: Function) => async (...args: any[]) => {
     }
 };
 
-<<<<<<< HEAD
 // Helper to get the current problem (works for both regular and practice mode)
 function getCurrentProblem(): Problem | CompanyProblem | null {
     const store = useInterviewStore.getState();
@@ -42,6 +41,7 @@ function getCurrentProblem(): Problem | CompanyProblem | null {
 function isCompanyProblem(problem: Problem | CompanyProblem): problem is CompanyProblem {
     return 'company' in problem && 'hints' in problem;
 }
+
 
 export const getAgentTools = (workspaceId: string | null) => ({
     read_candidate_code: wrapTool('read_candidate_code', async () => {
