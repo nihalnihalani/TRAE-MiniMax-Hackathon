@@ -131,6 +131,7 @@ export const RATE_LIMIT_CONFIG: Record<string, RateLimitConfig> = {
   '/api/analysis/review': { tokens: 10, window: 60000 },   // 10 per minute
   '/api/analysis/autofix': { tokens: 10, window: 60000 },  // 10 per minute
   '/api/analysis/coderabbit': { tokens: 10, window: 60000 }, // 10 per minute
+  '/api/interview/report': { tokens: 5, window: 60000 },   // 5 per minute (resource-intensive)
   '/api/tts': { tokens: 15, window: 60000 },               // 15 per minute
 
   // Default for other endpoints

@@ -149,6 +149,27 @@ export default function InterviewPage() {
       if (data.stdout) {
         addLog(data.stdout, 'stdout');
         setLastError(null);
+
+        // Parse and store test results if tests were run
+        if (currentProblem) {
+          const testOutput = data.stdout;
+          const passedMatches = testOutput.match(/✓ Test \d+ passed/g) || [];
+          const failedMatches = testOutput.match(/✗ Test \d+ (failed|error)/g) || [];
+          const testsPassed = passedMatches.length;
+          const testsTotal = currentProblem.testCases.length;
+
+          useInterviewStore.getState().addTestResult({
+            timestamp: Date.now(),
+            problemId: currentProblemId || 'unknown',
+            testsPassed,
+            testsTotal,
+            details: {
+              stdout: data.stdout,
+              passed: passedMatches,
+              failed: failedMatches
+            }
+          });
+        }
       }
       if (data.stderr) {
         addLog(`Error:\n${data.stderr}`, 'stderr');

@@ -32,6 +32,12 @@ export function InterviewAgent() {
             console.log("📩 Agent message:", message);
             console.log("Message type:", message.type);
             console.log("Message content:", message.message || message.text || message);
+
+            // Store agent messages in transcript
+            const messageText = message.message || message.text || JSON.stringify(message);
+            if (messageText && typeof messageText === 'string') {
+                useInterviewStore.getState().addTranscriptMessage('agent', messageText, 'audio');
+            }
         },
         onError: (err: any) => {
             console.error("❌ Voice Error:", err);
