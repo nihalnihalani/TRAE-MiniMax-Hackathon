@@ -24,6 +24,12 @@ export function InterviewAgent() {
     onMessage: (message: any) => console.log("Agent:", message),
     onError: (err: any) => console.error("Voice Error", err),
     clientTools: {
+      read_candidate_code: async () => {
+        console.log("Agent requested code read");
+        // Retrieve code from Zustand store state directly to ensure freshness
+        const currentCode = useInterviewStore.getState().code;
+        return currentCode || "No code written yet.";
+      },
       read_sandbox_file: async ({ path }: { path: string }) => {
         console.log("Agent requested file read:", path);
         if (!workspaceId) return "No active workspace.";
@@ -131,7 +137,7 @@ export function InterviewAgent() {
         });
     } catch (err) {
         console.error("Failed to start conversation:", err);
-        alert("Microphone access failed or Agent ID missing.");
+        alert("Microphone access failed or Agent ID missing. Please check your browser permissions and .env settings.");
     }
   };
 
