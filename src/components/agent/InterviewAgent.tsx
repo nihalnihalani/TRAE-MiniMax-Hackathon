@@ -18,8 +18,8 @@ export function InterviewAgent() {
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
 
-    // Memoize tools to avoid re-creation on every render, but update when workspaceId changes
-    const tools = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
+    // Memoize tools once - they access the latest state via logic inside getAgentTools
+    const tools = useMemo(() => getAgentTools(null), []);
 
     const conversation = useConversation({
         onConnect: () => {
