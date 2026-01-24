@@ -25,8 +25,8 @@ interface InterviewState {
   setWorkspaceId: (id: string | null) => void;
   
   // Console
-  consoleOutput: string[];
-  addLog: (log: string) => void;
+  consoleOutput: { type: 'stdout' | 'stderr' | 'system' | 'agent'; content: string }[];
+  addLog: (log: string, type?: 'stdout' | 'stderr' | 'system' | 'agent') => void;
   clearLogs: () => void;
 
   // Analysis
@@ -71,7 +71,9 @@ export const useInterviewStore = create<InterviewState>()(
 
       // Console
       consoleOutput: [],
-      addLog: (log) => set((state) => ({ consoleOutput: [...state.consoleOutput, log] })),
+      addLog: (log, type = 'system') => set((state) => ({ 
+        consoleOutput: [...state.consoleOutput, { type, content: log }] 
+      })),
       clearLogs: () => set({ consoleOutput: [] }),
 
       // Analysis
