@@ -1,15 +1,5 @@
 // src/lib/coderabbit.ts
 
-export interface CodeRabbitReview {
-  summary: string;
-  walkthrough: string[];
-  issues: {
-    severity: 'high' | 'medium' | 'low';
-    message: string;
-    line?: number;
-  }[];
-}
-
 import { daytonaService } from './daytona';
 
 export interface CodeRabbitReview {

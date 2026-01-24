@@ -1,4 +1,5 @@
 import { analyzeCodeWithGemini } from './gemini';
+import { COMPLEXITY_HIGH, COMPLEXITY_MEDIUM, MAX_HINTS } from './constants';
 
 /**
  * Advanced Agent Reasoning System
@@ -98,7 +99,7 @@ export class AgentReasoning {
         }
 
         // Priority 4: Complexity optimization
-        if (analysis.complexityScore > 7 && this.candidateProfile.hintsGiven < 3) {
+        if (analysis.complexityScore > (COMPLEXITY_HIGH - 1) && this.candidateProfile.hintsGiven < MAX_HINTS) {
             const hint = this.generateComplexityHint(analysis);
             actions.push({
                 type: 'hint',
@@ -278,9 +279,9 @@ for i, (input_val, expected) in enumerate(test_cases):
      * Generate complexity hint based on analysis
      */
     private generateComplexityHint(analysis: CodeAnalysis): string {
-        if (analysis.complexityScore > 8) {
+        if (analysis.complexityScore > COMPLEXITY_HIGH) {
             return 'This approach works, but has O(n²) complexity. Can you think of a way to solve it in O(n) using a hash map?';
-        } else if (analysis.complexityScore > 6) {
+        } else if (analysis.complexityScore > COMPLEXITY_MEDIUM) {
             return 'Good progress! There might be a more efficient approach. Consider what data structure could help you avoid nested loops.';
         }
         return 'Your solution is efficient. Nice work!';

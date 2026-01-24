@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Dialog,
   DialogContent,
@@ -15,15 +17,33 @@ interface InterviewReportDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function calculateIntegrityScore(integrity: {
+  blurCount: number;
+  pasteCount: number;
+  largePasteEvents: { timestamp: number; length: number }[];
+}): number {
+  // Diminishing penalty for blur events (first few are more suspicious)
+  // Max penalty: 25 points
+  const blurPenalty = Math.min(25, integrity.blurCount * 3 + Math.floor(integrity.blurCount / 3) * 2);
+
+  // Small pastes have minor penalty, large pastes are weighted heavily
+  // Max penalty: 40 points for regular pastes, plus additional for large pastes
+  const smallPastePenalty = Math.min(20, (integrity.pasteCount - integrity.largePasteEvents.length) * 3);
+  const largePastePenalty = Math.min(35, integrity.largePasteEvents.length * 15);
+
+  // Calculate final score
+  const totalPenalty = blurPenalty + smallPastePenalty + largePastePenalty;
+  return Math.max(0, 100 - totalPenalty);
+}
+
 export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDialogProps) {
   const { integrity, latestReview, coderabbitReview } = useInterviewStore();
 
-  const integrityScore = Math.max(0, 100 - (integrity.blurCount * 5) - (integrity.pasteCount * 10));
-  const isIntegrityGood = integrityScore > 80;
+  const integrityScore = calculateIntegrityScore(integrity);
+  const isIntegrityGood = integrityScore > 70;
 
-  // Simple heuristic for demo purposes
   const codeQualityScore = latestReview ? latestReview.score : 0;
-  const hireRecommendation = (integrityScore > 70 && codeQualityScore > 7) ? "HIRE" : "NO HIRE";
+  const hireRecommendation = (integrityScore > 60 && codeQualityScore >= 7) ? "HIRE" : "NO HIRE";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,9 +78,15 @@ export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDia
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Suspicious Pastes:</span>
-                  <span className={integrity.pasteCount > 0 ? "text-red-500 font-bold" : "text-green-500"}>
-                    {integrity.pasteCount} detected
+                  <span>Small Pastes:</span>
+                  <span className={integrity.pasteCount - integrity.largePasteEvents.length > 0 ? "text-yellow-500" : "text-green-500"}>
+                    {integrity.pasteCount - integrity.largePasteEvents.length} detected
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Large Pastes (high risk):</span>
+                  <span className={integrity.largePasteEvents.length > 0 ? "text-red-500 font-bold" : "text-green-500"}>
+                    {integrity.largePasteEvents.length} detected
                   </span>
                 </div>
               </div>

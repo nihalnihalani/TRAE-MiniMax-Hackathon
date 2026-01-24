@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isValidTTSText, MAX_TTS_LENGTH } from '@/lib/validation';
+import { errorResponse, handleApiError } from '@/lib/api-utils';
+import { DEFAULT_VOICE_ID } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   try {
     const { text } = await req.json();
 
     if (!text) {
-      return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+      return errorResponse('Text is required', 400, 'MISSING_TEXT');
     }
 
-    const voiceId = "cgSgspJ2msm6clMCkdW9"; // Default Jessica
+    if (!isValidTTSText(text)) {
+      return errorResponse(
+        `Invalid text. Must be non-empty and no more than ${MAX_TTS_LENGTH} characters`,
+        400,
+        'INVALID_TEXT'
+      );
+    }
+
+    const voiceId = DEFAULT_VOICE_ID;
     const apiKey = process.env.ELEVENLABS_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+      return errorResponse('API key not configured', 500, 'MISSING_API_KEY');
     }
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -33,11 +44,11 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: errorText }, { status: response.status });
+      return errorResponse(errorText, response.status, 'TTS_API_ERROR');
     }
 
     const audioBuffer = await response.arrayBuffer();
-    
+
     return new NextResponse(audioBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
@@ -46,7 +57,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('TTS Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return handleApiError(error, 'TTS Error');
   }
 }
