@@ -16,7 +16,7 @@ interface InterviewState {
   setStatus: (status: 'idle' | 'active' | 'completed') => void;
 
   // Code
-  language: string; // 'python' | 'typescript'
+  language: string; 
   code: string;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
@@ -29,6 +29,10 @@ interface InterviewState {
   // Analysis
   latestReview: ReviewResult | null;
   setReview: (review: ReviewResult | null) => void;
+
+  // Demo / Wizard Mode
+  isWizardMode: boolean;
+  toggleWizardMode: () => void;
 }
 
 export const useInterviewStore = create<InterviewState>()(
@@ -54,14 +58,19 @@ export const useInterviewStore = create<InterviewState>()(
       // Analysis
       latestReview: null,
       setReview: (review) => set({ latestReview: review }),
+
+      // Wizard Mode
+      isWizardMode: false,
+      toggleWizardMode: () => set((state) => ({ isWizardMode: !state.isWizardMode })),
     }),
     {
       name: 'interview-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ 
         code: state.code,
-        language: state.language 
-      }), // Only persist code and language
+        language: state.language,
+        isWizardMode: state.isWizardMode // Persist wizard mode preference
+      }), 
     }
   )
 );
