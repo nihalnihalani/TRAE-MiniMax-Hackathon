@@ -30,6 +30,18 @@ interface TestResult {
   details: any;
 }
 
+// Practice session for practice interviews
+interface PracticeSession {
+  id: string;
+  timestamp: number;
+  companyId: string;
+  problemId: string;
+  score: number;
+  skillLevel: string;
+  improvementAreas: string[];
+  duration: number;
+}
+
 // Workspace status types
 export type WorkspaceStatus = 'idle' | 'creating' | 'installing' | 'ready' | 'error';
 
@@ -99,6 +111,15 @@ interface InterviewState {
   // Demo / Wizard Mode
   isWizardMode: boolean;
   toggleWizardMode: () => void;
+
+  // Practice Interview Mode
+  interviewMode: 'real' | 'practice';
+  setInterviewMode: (mode: 'real' | 'practice') => void;
+  selectedCompanyId: string | null;
+  setSelectedCompanyId: (id: string | null) => void;
+  practiceHistory: PracticeSession[];
+  addPracticeSession: (session: PracticeSession) => void;
+  clearPracticeHistory: () => void;
 }
 
 export const useInterviewStore = create<InterviewState>()(
@@ -195,10 +216,21 @@ export const useInterviewStore = create<InterviewState>()(
       // Wizard Mode
       isWizardMode: false,
       toggleWizardMode: () => set((state) => ({ isWizardMode: !state.isWizardMode })),
+
+      // Practice Interview Mode
+      interviewMode: 'real',
+      setInterviewMode: (interviewMode) => set({ interviewMode }),
+      selectedCompanyId: null,
+      setSelectedCompanyId: (selectedCompanyId) => set({ selectedCompanyId }),
+      practiceHistory: [],
+      addPracticeSession: (session) => set((state) => ({
+        practiceHistory: [...state.practiceHistory, session]
+      })),
+      clearPracticeHistory: () => set({ practiceHistory: [] }),
     }),
     {
       name: 'interview-storage',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<InterviewState>;
@@ -233,12 +265,25 @@ export const useInterviewStore = create<InterviewState>()(
             workspaceError: null
           };
         }
+        if (version === 3) {
+          // Migrate from version 3: Add practice interview mode fields
+          return {
+            ...state,
+            interviewMode: 'real',
+            selectedCompanyId: null,
+            practiceHistory: []
+          };
+        }
         return state as InterviewState;
       },
       partialize: (state) => ({
         code: state.code,
         language: state.language,
-        isWizardMode: state.isWizardMode // Persist wizard mode preference
+        isWizardMode: state.isWizardMode, // Persist wizard mode preference
+        interviewMode: state.interviewMode, // Persist interview mode preference
+        selectedCompanyId: state.selectedCompanyId, // Persist selected company for practice mode
+        currentProblemId: state.currentProblemId, // Persist current problem
+        practiceHistory: state.practiceHistory // Persist practice history
       }),
     }
   )

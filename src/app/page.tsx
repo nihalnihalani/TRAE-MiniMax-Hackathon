@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/ui/Logo";
-import { Mic, BrainCircuit, Terminal, ArrowRight } from "lucide-react";
+import { Mic, BrainCircuit, Terminal, GraduationCap } from "lucide-react";
 import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
+import { StartInterviewButton } from "@/components/interview/StartInterviewButton";
 
 export default function Home() {
   return (
@@ -18,9 +19,7 @@ export default function Home() {
             <Link href="/test">
               <Button variant="ghost">Smoke Test</Button>
             </Link>
-            <Link href="/interview">
-              <Button>Start Interview</Button>
-            </Link>
+            <StartInterviewButton size="default" showIcon={false} />
           </div>
         </div>
       </header>
@@ -39,14 +38,16 @@ export default function Home() {
           Experience a voice-first coding interview with "Alex", an AI agent powered by Gemini 3 Pro and ElevenLabs, running in a secure Daytona sandbox.
         </p>
 
-        <div className="flex gap-4 animate-slide-up-fade" style={{ animationDelay: '600ms' }}>
-          <Link href="/interview">
-            <Button size="lg" className="h-12 px-8 text-lg">
-              Start Interview <ArrowRight className="ml-2 w-5 h-5" />
+        <div className="flex flex-wrap justify-center gap-4 animate-slide-up-fade" style={{ animationDelay: '600ms' }}>
+          <StartInterviewButton size="lg" className="h-12 px-8 text-lg" />
+          <Link href="/practice">
+            <Button variant="outline" size="lg" className="h-12 px-8 text-lg">
+              <GraduationCap className="mr-2 w-5 h-5" />
+              Practice Mode
             </Button>
           </Link>
           <Link href="https://github.com/daytonaio/sdk" target="_blank">
-            <Button variant="outline" size="lg" className="h-12 px-8 text-lg">
+            <Button variant="ghost" size="lg" className="h-12 px-8 text-lg">
               View on GitHub
             </Button>
           </Link>
