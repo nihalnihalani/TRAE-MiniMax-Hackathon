@@ -1,3 +1,5 @@
+import { analyzeCodeWithGemini } from './gemini';
+
 /**
  * Advanced Agent Reasoning System
  * Provides multi-step decision making and autonomous actions for the interview agent
@@ -34,7 +36,6 @@ export interface CandidateProfile {
 }
 
 export class AgentReasoning {
-    private conversationHistory: Array<{ role: string; content: string }> = [];
     private candidateProfile: CandidateProfile = {
         strengths: [],
         weaknesses: [],
@@ -47,8 +48,8 @@ export class AgentReasoning {
     /**
      * Analyze code and determine next actions
      */
-    async analyzeAndAct(code: string, context?: string): Promise<AgentAction[]> {
-        const analysis = await this.deepAnalysis(code);
+    async analyzeAndAct(code: string, language: string = 'python'): Promise<AgentAction[]> {
+        const analysis = await this.deepAnalysis(code, language);
         const actions: AgentAction[] = [];
 
         // Priority 1: Handle missing dependencies
@@ -62,7 +63,7 @@ export class AgentReasoning {
                 {
                     type: 'install',
                     package: pkg,
-                    manager: this.detectPackageManager(code)
+                    manager: this.detectPackageManager(code, language)
                 },
                 {
                     type: 'speak',
@@ -145,9 +146,10 @@ export class AgentReasoning {
     }
 
     /**
-     * Deep code analysis using pattern matching and heuristics
+     * Deep code analysis using Gemini AI with fallback to heuristics
      */
-    private async deepAnalysis(code: string): Promise<CodeAnalysis> {
+    private async deepAnalysis(code: string, language: string): Promise<CodeAnalysis> {
+        // Initial fallback analysis structure
         const analysis: CodeAnalysis = {
             hasMissingDependency: false,
             missingPackages: [],
@@ -159,21 +161,64 @@ export class AgentReasoning {
             securityIssues: [],
         };
 
-        // Check for missing imports/dependencies
-        const importMatches = code.match(/import\s+(\w+)|from\s+(\w+)\s+import/g);
-        const commonPackages = ['numpy', 'pandas', 'requests', 'flask', 'django'];
+        try {
+            // Use Gemini for deep semantic analysis
+            const aiResult = await analyzeCodeWithGemini(code, language);
+            
+            // Map AI result to our internal structure
+            analysis.complexityScore = aiResult.score ? (10 - aiResult.score) * 2 : 0; // Inverse score mapping
+            
+            // Heuristic for missing dependencies (Gemini might miss specific import checks)
+            const importMatches = code.match(/import\s+(\w+)|from\s+(\w+)\s+import/g);
+            const commonPackages = ['numpy', 'pandas', 'requests', 'flask', 'django', 'matplotlib', 'scipy'];
+            if (importMatches) {
+                importMatches.forEach((match) => {
+                    const pkg = match.match(/(?:import|from)\s+(\w+)/)?.[1];
+                    if (pkg && commonPackages.includes(pkg.toLowerCase())) {
+                        analysis.hasMissingDependency = true;
+                        analysis.missingPackages.push(pkg.toLowerCase());
+                    }
+                });
+            }
 
-        if (importMatches) {
-            importMatches.forEach((match) => {
-                const pkg = match.match(/(?:import|from)\s+(\w+)/)?.[1];
-                if (pkg && commonPackages.includes(pkg.toLowerCase())) {
-                    analysis.hasMissingDependency = true;
-                    analysis.missingPackages.push(pkg.toLowerCase());
-                }
-            });
+            // Map AI issues to categories
+            if (aiResult.issues && aiResult.issues.length > 0) {
+                aiResult.issues.forEach((issue: string) => {
+                    const lowerIssue = issue.toLowerCase();
+                    if (lowerIssue.includes('syntax') || lowerIssue.includes('indentation')) {
+                        analysis.hasSyntaxErrors = true;
+                    } else if (lowerIssue.includes('logic') || lowerIssue.includes('bug')) {
+                        analysis.hasLogicErrors = true;
+                    } else if (lowerIssue.includes('edge case') || lowerIssue.includes('empty')) {
+                        analysis.hasEdgeCaseIssues = true;
+                    } else {
+                        // Treat generic issues as optimization opportunities or general feedback
+                        analysis.optimizationOpportunities.push(issue);
+                    }
+                });
+            }
+
+            if (aiResult.security_issues && aiResult.security_issues.length > 0) {
+                analysis.securityIssues = aiResult.security_issues;
+            }
+
+            // Fallback: If AI fails to detect complexity but we see nested loops
+            const nestedLoops = (code.match(/for\s+.*:\s*\n\s+for\s+/g) || []).length;
+            if (nestedLoops > 0 && analysis.complexityScore < 5) {
+                analysis.complexityScore = Math.min(10, nestedLoops * 3 + 5);
+            }
+
+        } catch (error) {
+            console.error("AI Analysis failed, falling back to heuristics", error);
+            // Fallback to original heuristics if AI fails
+            this.runHeuristics(code, analysis);
         }
 
-        // Check for syntax errors (basic)
+        return analysis;
+    }
+
+    private runHeuristics(code: string, analysis: CodeAnalysis) {
+        // Simple syntax check
         const openBrackets = (code.match(/[\(\[\{]/g) || []).length;
         const closeBrackets = (code.match(/[\)\]\}]/g) || []).length;
         if (openBrackets !== closeBrackets) {
@@ -191,19 +236,10 @@ export class AgentReasoning {
             analysis.hasEdgeCaseIssues = true;
         }
 
-        // Optimization opportunities
-        if (nestedLoops > 0) {
-            analysis.optimizationOpportunities.push(
-                'Consider using a hash map to reduce time complexity from O(n²) to O(n).'
-            );
-        }
-
         // Security checks
         if (code.includes('eval(') || code.includes('exec(')) {
-            analysis.securityIssues.push('Using eval() or exec() can be dangerous. Consider safer alternatives.');
+            analysis.securityIssues.push('Using eval() or exec() can be dangerous.');
         }
-
-        return analysis;
     }
 
     /**
@@ -225,6 +261,7 @@ test_cases = [
     (list(range(1000)), list(range(1000))),  # Large input
 ]
 
+print("Running hidden tests...")
 for i, (input_val, expected) in enumerate(test_cases):
     try:
         result = ${funcName}(input_val)
@@ -252,15 +289,14 @@ for i, (input_val, expected) in enumerate(test_cases):
     /**
      * Detect package manager based on code
      */
-    private detectPackageManager(code: string): 'pip' | 'npm' {
-        // Simple heuristic: Python imports = pip, JS imports = npm
-        if (code.includes('import ') || code.includes('from ')) {
-            return 'pip';
-        }
-        if (code.includes('require(') || code.includes('import {')) {
-            return 'npm';
-        }
-        return 'pip'; // Default
+    private detectPackageManager(code: string, language: string): 'pip' | 'npm' {
+        if (language === 'typescript' || language === 'javascript') return 'npm';
+        if (language === 'python') return 'pip';
+        
+        // Fallback heuristics
+        if (code.includes('import ') || code.includes('from ')) return 'pip';
+        if (code.includes('require(') || code.includes('import {')) return 'npm';
+        return 'pip';
     }
 
     /**
