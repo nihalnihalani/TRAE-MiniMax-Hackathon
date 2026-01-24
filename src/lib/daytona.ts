@@ -53,26 +53,33 @@ export class DaytonaService {
     }
   }
 
-  async installDependencies(workspaceId: string, command: string): Promise<ExecutionResult> {
+  async installPackage(workspaceId: string, packageName: string, manager: 'pip' | 'npm'): Promise<ExecutionResult> {
     if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
-        console.log(`Mocking installDependencies: ${command}`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return { stdout: "Dependencies installed", stderr: "", exitCode: 0 };
+        console.log(`Mocking installPackage: ${manager} install ${packageName}`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return { stdout: `Successfully installed ${packageName}`, stderr: "", exitCode: 0 };
     }
 
     try {
-        // Run the installation command
-        // Note: Using 'exec' as a generic command runner here, assuming SDK supports it or similar
-        // Adjust based on actual SDK capability if 'exec' is purely for code. 
-        // Typically daytona.exec runs in the default shell.
+        let command = '';
+        if (manager === 'pip') {
+            command = `pip install ${packageName}`;
+        } else if (manager === 'npm') {
+            command = `npm install ${packageName}`;
+        } else {
+            throw new Error(`Unsupported package manager: ${manager}`);
+        }
+
+        console.log(`Installing ${packageName} via ${manager} in ${workspaceId}...`);
         const result = await this.daytona.exec(workspaceId, command, 'shell');
+        
         return {
             stdout: result.stdout,
             stderr: result.stderr,
             exitCode: result.exitCode,
         };
     } catch (error) {
-        console.error('Failed to install dependencies:', error);
+        console.error('Failed to install package:', error);
         return {
             stdout: "",
             stderr: error instanceof Error ? error.message : String(error),

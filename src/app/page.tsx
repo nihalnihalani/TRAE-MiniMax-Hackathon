@@ -76,7 +76,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t py-8 text-center text-sm text-muted-foreground">
-        Built with Next.js, Daytona, ElevenLabs, and Gemini.
+        Built with Next.js, Daytona, ElevenLabs, Gemini, and CodeRabbit.
       </footer>
     </div>
   );

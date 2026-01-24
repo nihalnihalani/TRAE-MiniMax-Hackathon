@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Play, Sparkles, Wand2, Rabbit } from "lucide-react";
+import { Play, Sparkles, Wand2, Rabbit, FileDown } from "lucide-react";
 import { useInterviewStore } from '@/lib/store';
+import { generateInterviewReport } from '@/lib/reporting';
 
 interface ControlsProps {
   onRun: () => void;
@@ -14,6 +15,19 @@ interface ControlsProps {
 
 export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzing, isCodeRabbitLoading }: ControlsProps) {
   const { isWizardMode, toggleWizardMode } = useInterviewStore();
+
+  const handleDownloadReport = () => {
+    const report = generateInterviewReport();
+    const blob = new Blob([report], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `interview-report-${new Date().getTime()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex flex-col gap-2 p-4">
@@ -47,6 +61,15 @@ export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzin
             {isCodeRabbitLoading ? "CodeRabbit..." : "CodeRabbit Review"}
         </Button>
       </div>
+
+      <Button 
+        variant="outline" 
+        className="w-full border-blue-500/50 text-blue-500 hover:bg-blue-500/10"
+        onClick={handleDownloadReport}
+      >
+        <FileDown className="w-4 h-4 mr-2" />
+        End Interview & Report
+      </Button>
 
       <div className="pt-4 border-t border-gray-800 mt-2">
          <Button 
