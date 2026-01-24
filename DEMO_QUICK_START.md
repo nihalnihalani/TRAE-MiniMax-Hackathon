@@ -52,21 +52,23 @@ print(reverse_list([1, 2, 3]))
 - Agent greets: "Hi! I'm Alex. Ready to code?"
 - Say: "Voice-powered AI interviewer using ElevenLabs"
 
-### Part 3: Write Code (20s)
-- Paste/type the Python snippet
-- Say: "Candidate writes code in Monaco editor, running in Daytona container"
+### Part 3: Break the Code (20s) 💥
+- Paste/type the Python snippet (which uses `numpy`)
+- Say: "I'm writing code that requires `numpy`, which isn't installed in this fresh container."
+- **Point out that it should fail.**
+- Say: "Normally, this would be an error."
 
-### Part 4: Agent Action (20s)
+### Part 4: Auto-Fix Action (20s) 🛠️
 - Agent detects `import numpy`
-- Agent says: "I'll install numpy for you"
+- Agent says: "I see you need numpy. I'll install it for you."
 - Watch thinking indicator appear
-- Console shows: `pip install numpy`
-- Say: "Agent autonomously controls infrastructure"
+- Console shows: `pip install numpy` running automatically.
+- Say: "This is **Self-Healing Code**. The agent autonomously fixes the Daytona environment."
 
 ### Part 5: Run Code (10s)
 - Click "Run Code"
 - Show output: `[3, 2, 1]`
-- Say: "Secure execution in isolated container"
+- Say: "Code runs successfully in the isolated container."
 
 ### Part 6: Integrity (10s)
 - Switch tabs briefly (trigger blur)

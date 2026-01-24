@@ -1,8 +1,55 @@
-# DAYTONA Interview Sandbox
+# 🚀 DAYTONA Interview Sandbox
 
-An advanced, AI-powered technical interview platform that combines a live coding environment with an interactive voice agent and intelligent code analysis. This project leverages the **Daytona SDK** for secure sandboxed execution, **ElevenLabs** for realistic voice interaction, and **Google Gemini 3 Pro** for deep code understanding and feedback.
+**The Hackathon-Winning Platform for AI-Driven Technical Interviews.**
 
-## 🚀 Key Features
+An advanced, self-healing interview ecosystem where **Daytona** containers meet **Gemini 3 Pro** intelligence and **ElevenLabs** voice agents.
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    User[Candidate] -->|Code & Interaction| NextUI[Next.js UI\n(Monaco, Console, Avatar)]
+    NextUI -->|Orchestrates| NextAPI[Next.js API Routes]
+    
+    subgraph "Infrastructure Layer"
+        NextAPI -->|Manages| DaytonaSDK[Daytona SDK]
+        DaytonaSDK -->|Spawns| Docker[Docker Containers\n(Ephemeral Sandboxes)]
+    end
+    
+    subgraph "Intelligence Layer"
+        NextAPI -->|Analysis & Auto-Fix| Gemini[Gemini 3 Pro]
+        NextUI -->|Voice Stream| Eleven[ElevenLabs Agent]
+    end
+    
+    Gemini -.->|Self-Healing Commands| DaytonaSDK
+    Eleven -.->|Verbal Feedback| User
+```
+
+## ⚡ Tech Stack & Badges
+
+| Frontend | Backend & AI | Infrastructure |
+|----------|--------------|----------------|
+| ![Next.js](https://img.icons8.com/?size=48&id=yUdJlcKanVbh&format=png) **Next.js 16** | ![Gemini](https://img.icons8.com/?size=48&id=17949&format=png) **Gemini 3 Pro** | ![Docker](https://img.icons8.com/?size=48&id=22813&format=png) **Docker** |
+| ![React](https://img.icons8.com/?size=48&id=123603&format=png) **React 19** | ![Robot](https://img.icons8.com/?size=48&id=9inONWn9EvfI&format=png) **ElevenLabs** | ![Daytona](https://img.icons8.com/?size=48&id=13441&format=png) **Daytona SDK** |
+| ![TypeScript](https://img.icons8.com/?size=48&id=uJM6fQYqDaZK&format=png) **TypeScript** | ![Tailwind](https://img.icons8.com/?size=48&id=4PiNHtUJVbLs&format=png) **Tailwind CSS** |  |
+
+*Powered by high-performance [Icons8](https://icons8.com) assets.*
+
+## 🏆 Why This Wins (Key Differentiators)
+
+### 1. 🧬 Self-Healing Code (The "Auto-Fix" Agent)
+Unlike static code editors, our system uses **Gemini 3 Pro** to actively monitor execution errors. If a candidate misses a dependency (e.g., `import numpy`), the agent **autonomously intercepts the error, installs the package via pip/npm, and re-runs the code**—all in real-time.
+
+### 2. 🧠 Neuro-Link Console
+A real-time system visualization dashboard that exposes the "brain" of the interview. Watch as the agent analyzes syntax, checks integrity, and orchestrates Docker containers live.
+
+### 3. 🔧 Agentic Infrastructure
+We don't just run code; we manage the environment. The **Daytona SDK** gives our AI full control to spawn, configure, and tear down ephemeral sandboxes instantly, ensuring a clean slate for every interview.
+
+### 4. 🛡️ Integrity & Trust
+Built-in anti-cheat metrics monitor tab focus, copy-paste events, and typing patterns, providing a calculated **Trust Score** alongside technical competency metrics.
+
+## 🚀 Key Features (Original)
 
 ### 🏆 **Hackathon Highlights**
 *   **📊 Real-World Impact Metrics:** Demonstrates 94% consistency vs 67% for human interviews, 50% time savings, and 23% cheating detection rate
@@ -15,34 +62,6 @@ An advanced, AI-powered technical interview platform that combines a live coding
 *   **💻 Secure Coding Sandbox:** A fully functional, browser-based code editor (Monaco Editor) backed by **Daytona** containers for safe code execution in various languages.
 *   **🧠 Intelligent Code Analysis:** Real-time code reviews and "CodeRabbit-style" feedback powered by **Google Gemini**, offering insights on bugs, complexity, and best practices.
 *   **🐇 Deep CodeRabbit Integration:** Native integration with the **CodeRabbit CLI** within the Daytona sandbox, providing professional-grade automated code reviews, walkthroughs, and issue detection directly in the interview workflow.
-
-### 🔒 **Integrity & Security**
-*   **🕵️‍♂️ Advanced Integrity Monitoring:** Automated monitoring of tab focus, paste events, and typing patterns to ensure interview integrity with trust scoring
-*   **📝 Automated Reporting:** Generates comprehensive Markdown reports with code quality scores (correctness, efficiency, style, edge cases), integrity analysis, and hire/no-hire recommendations
-*   **🔧 Agentic Infrastructure:** The AI agent can autonomously install dependencies (pip/npm), run hidden test cases, and provide real-time guidance
-
-### ⚡ **Modern Tech Stack**
-
-## 🛠️ Technology Stack
-
-### Core Framework
-*   **[Next.js 16](https://nextjs.org/)** - App Router architecture.
-*   **[React 19](https://react.dev/)** - The latest React features including Server Components.
-*   **[TypeScript](https://www.typescriptlang.org/)** - Fully typed codebase for reliability.
-
-### UI & Styling
-*   **[Tailwind CSS 4](https://tailwindcss.com/)** - Utility-first CSS framework.
-*   **[Shadcn UI](https://ui.shadcn.com/)** - Reusable components built with Radix UI.
-*   **[Lucide React](https://lucide.dev/)** - Beautiful, consistent icons.
-*   **[Monaco Editor](https://microsoft.github.io/monaco-editor/)** - The VS Code editor for the web.
-
-### AI & Backend Services
-*   **[Daytona SDK](https://daytona.io/)** - For managing secure, ephemeral coding environments.
-*   **[CodeRabbit CLI](https://coderabbit.ai/)** - Integrated for deep, contextual code reviews.
-*   **[ElevenLabs React SDK](https://elevenlabs.io/)** - For low-latency conversational AI.
-*   **[Google Generative AI (Gemini)](https://ai.google.dev/)** - For code reasoning and interview logic.
-*   **[Zustand](https://github.com/pmndrs/zustand)** - Lightweight state management.
-*   **[Sentry](https://sentry.io/)** - Error tracking and performance monitoring.
 
 ## 🏁 Getting Started
 
