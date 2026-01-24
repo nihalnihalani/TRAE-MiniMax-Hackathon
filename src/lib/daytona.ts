@@ -61,17 +61,26 @@ export interface FileInfo {
 
 /**
  * Validates and sanitizes a file path to prevent directory traversal attacks.
+ * Allows absolute paths since they are valid within an isolated sandbox environment.
  * @throws Error if the path is invalid or potentially malicious
  */
 function sanitizePath(path: string): string {
+  if (!path || typeof path !== 'string') {
+    throw new Error('Invalid path: path cannot be empty');
+  }
+
+  // Check for directory traversal attempts
   if (path.includes('..')) {
     throw new Error('Invalid path: directory traversal sequences (..) are not allowed');
   }
 
-  if (path.startsWith('/')) {
-    throw new Error('Invalid path: absolute paths are not allowed');
+  // Check for null bytes (security issue)
+  if (path.includes('\0')) {
+    throw new Error('Invalid path: null bytes are not allowed');
   }
 
+  // Allow alphanumeric, underscore, dash, dot, and forward slash
+  // Absolute paths starting with / are allowed in sandbox environments
   const validPathPattern = /^[a-zA-Z0-9_\-./]+$/;
   if (!validPathPattern.test(path)) {
     throw new Error('Invalid path: only alphanumeric characters, underscore, dash, dot, and forward slash are allowed');

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
 import { analyzeCodeWithGemini } from '@/lib/gemini';
+import { isValidCode, isValidLanguage, VALID_LANGUAGES, MAX_CODE_SIZE } from '@/lib/validation';
+import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 
 export async function POST(request: Request) {
   try {
@@ -7,13 +8,28 @@ export async function POST(request: Request) {
     const { code, language } = body;
 
     if (!code) {
-      return NextResponse.json({ error: 'Code is required' }, { status: 400 });
+      return errorResponse('Code is required', 400, 'MISSING_CODE');
+    }
+
+    if (!isValidCode(code)) {
+      return errorResponse(
+        `Invalid code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
+        400,
+        'INVALID_CODE'
+      );
+    }
+
+    if (language && !isValidLanguage(language)) {
+      return errorResponse(
+        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
+        400,
+        'INVALID_LANGUAGE'
+      );
     }
 
     const analysis = await analyzeCodeWithGemini(code, language || 'python');
-    return NextResponse.json(analysis);
+    return successResponse(analysis);
   } catch (error) {
-    console.error('Analysis Error:', error);
-    return NextResponse.json({ error: 'Failed to analyze code' }, { status: 500 });
+    return handleApiError(error, 'Analysis Error');
   }
 }

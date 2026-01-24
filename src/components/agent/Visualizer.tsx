@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useRef } from 'react';
 
 export function Visualizer({ isSpeaking }: { isSpeaking: boolean }) {
@@ -34,5 +36,14 @@ export function Visualizer({ isSpeaking }: { isSpeaking: boolean }) {
     return () => cancelAnimationFrame(animationId);
   }, [isSpeaking]);
 
-  return <canvas ref={canvasRef} width={200} height={50} className="rounded-md bg-black/20" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      width={200}
+      height={50}
+      className="rounded-md bg-black/20"
+      role="img"
+      aria-label={isSpeaking ? "Audio visualizer: Agent is speaking" : "Audio visualizer: Agent is silent"}
+    />
+  );
 }
