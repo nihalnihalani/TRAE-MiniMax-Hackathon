@@ -11,6 +11,7 @@ import { ConsolePanel } from "@/components/interview/ConsolePanel";
 import { Controls } from "@/components/interview/Controls";
 import { CodeEditor } from "@/components/editor/CodeEditor";
 import { InterviewAgent } from "@/components/agent/InterviewAgent";
+import { SubAgentPanel } from "@/components/agent/SubAgentPanel";
 import { AnalysisPanel } from "@/components/analysis/AnalysisPanel";
 import { useInterviewStore } from "@/lib/store";
 import { useEffect, useState } from "react";
@@ -50,7 +51,7 @@ export default function InterviewPage() {
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
   // activeTab is now controlled by the Tabs component, but we can sync it or just let Tabs handle it
   // We keep it in state to switch programmatically when buttons are clicked
-  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
+  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit' | 'assistants'>('assistants');
   const [isFixing, setIsFixing] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -309,10 +310,11 @@ export default function InterviewPage() {
 
           <ResizableHandle />
 
-          {/* Center Panel: Editor & Console */}
+          {/* Center Panel: Editor (top) & Console (bottom) */}
           <ResizablePanel defaultSize={50} minSize={30}>
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={70}>
+            <div className="flex flex-col h-full">
+              {/* Code Editor - Top 70% */}
+              <div className="flex-[7] min-h-0 overflow-hidden">
                 <CodeEditor
                   language="python"
                   initialCode={code}
@@ -320,12 +322,12 @@ export default function InterviewPage() {
                   onRun={() => handleRun(code)}
                   isRunning={isRunning}
                 />
-              </ResizablePanel>
-              <ResizableHandle />
-              <ResizablePanel defaultSize={30} minSize={10}>
+              </div>
+              {/* Console Panel - Bottom 30% */}
+              <div className="flex-[3] min-h-0 overflow-hidden">
                 <ConsolePanel output={consoleOutput} />
-              </ResizablePanel>
-            </ResizablePanelGroup>
+              </div>
+            </div>
           </ResizablePanel>
 
           <ResizableHandle />
@@ -352,10 +354,14 @@ export default function InterviewPage() {
 
               <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-3 mb-4">
+                    <TabsTrigger value="assistants">AI Assistants</TabsTrigger>
+                    <TabsTrigger value="gemini">Gemini</TabsTrigger>
                     <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="assistants" className="flex-1 mt-0 -mx-4 -mb-4">
+                    <SubAgentPanel />
+                  </TabsContent>
                   <TabsContent value="gemini" className="flex-1 mt-0">
                     <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
                   </TabsContent>
