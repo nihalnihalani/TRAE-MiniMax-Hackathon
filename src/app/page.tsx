@@ -26,8 +26,10 @@ export default function Home() {
       <main className="flex-1 container mx-auto px-4 py-16 flex flex-col items-center text-center space-y-8">
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-4xl flex flex-col items-center gap-2 pb-2">
           <span className="animate-slide-up-fade">The Next Generation of</span>
-          <span className="animate-shimmer animate-slide-up-fade delay-200">
-            Technical Interviews
+          <span className="animate-slide-up-fade delay-200">
+            <span className="animate-shimmer">
+              Technical Interviews
+            </span>
           </span>
         </h1>
         
