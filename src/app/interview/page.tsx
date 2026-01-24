@@ -18,21 +18,26 @@ import { Loader2 } from "lucide-react";
 import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 import { Logo } from "@/components/ui/Logo";
 import { InterviewReportDialog } from "@/components/interview/InterviewReportDialog";
+import { WorkspaceProgressIndicator } from "@/components/workspace/WorkspaceProgressIndicator";
 import { Shield, AlertTriangle } from "lucide-react";
 
 export default function InterviewPage() {
-  const { 
-    code, 
-    setCode, 
-    consoleOutput, 
-    addLog, 
+  const {
+    code,
+    setCode,
+    consoleOutput,
+    addLog,
     clearLogs,
     latestReview,
     setReview,
     coderabbitReview,
     setCodeRabbitReview,
     workspaceId,
-    setWorkspaceId
+    setWorkspaceId,
+    workspaceStatus,
+    setWorkspaceStatus,
+    setWorkspaceProgress,
+    setWorkspaceError
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
@@ -51,30 +56,60 @@ export default function InterviewPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Initialize workspace
-  useEffect(() => {
-    async function initWorkspace() {
-      try {
-        const res = await fetch('/api/sandbox/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language: 'python' }),
-        });
-        const data = await res.json();
-        // Handle both direct and wrapped response formats
-        const workspaceId = data.data?.id || data.id;
-        if (workspaceId) {
-          setWorkspaceId(workspaceId);
-          addLog(`Workspace initialized: ${workspaceId}`);
-        } else {
-          console.error("Workspace creation failed:", data);
-          addLog(`Failed to initialize workspace: ${data.error || 'Unknown error'}`);
-        }
-      } catch (err) {
-        console.error("Failed to init workspace", err);
-        addLog("Failed to initialize workspace.");
+  // Initialize workspace with progress tracking
+  const initWorkspace = async () => {
+    setWorkspaceStatus('creating');
+    setWorkspaceProgress({ step: 'Connecting to Daytona...', progress: 10 });
+    setWorkspaceError(null);
+
+    try {
+      setWorkspaceProgress({ step: 'Creating sandbox environment...', progress: 25 });
+
+      const res = await fetch('/api/sandbox/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: 'python' }),
+      });
+
+      setWorkspaceProgress({ step: 'Configuring workspace...', progress: 50 });
+
+      const data = await res.json();
+
+      // Check for rate limiting or other errors
+      if (!res.ok) {
+        const errorMsg = data.friendlyMessage?.message || data.error || 'Failed to create workspace';
+        throw new Error(errorMsg);
       }
+
+      // Handle both direct and wrapped response formats
+      const newWorkspaceId = data.data?.id || data.id;
+
+      if (newWorkspaceId) {
+        setWorkspaceStatus('installing');
+        setWorkspaceProgress({ step: 'Installing development tools...', progress: 75 });
+
+        // Brief pause to show installation step
+        await new Promise(r => setTimeout(r, 500));
+
+        setWorkspaceProgress({ step: 'Finalizing setup...', progress: 90 });
+        setWorkspaceId(newWorkspaceId);
+
+        setWorkspaceProgress({ step: 'Ready!', progress: 100 });
+        setWorkspaceStatus('ready');
+        addLog(`Workspace initialized: ${newWorkspaceId}`);
+      } else {
+        throw new Error(data.error || 'Unknown error - no workspace ID returned');
+      }
+    } catch (err) {
+      console.error("Failed to init workspace", err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize workspace';
+      setWorkspaceStatus('error');
+      setWorkspaceError(errorMessage);
+      addLog(`Failed to initialize workspace: ${errorMessage}`);
     }
+  };
+
+  useEffect(() => {
     initWorkspace();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once
@@ -305,6 +340,9 @@ export default function InterviewPage() {
        </div>
 
        <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
+
+       {/* Workspace Progress Indicator */}
+       <WorkspaceProgressIndicator onRetry={initWorkspace} />
     </div>
   );
 }

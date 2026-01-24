@@ -11,6 +11,14 @@ interface ReviewResult {
   reasoning_trace: string;
 }
 
+// Workspace status types
+export type WorkspaceStatus = 'idle' | 'creating' | 'installing' | 'ready' | 'error';
+
+interface WorkspaceProgress {
+  step: string;
+  progress: number;
+}
+
 interface InterviewState {
   // Session
   status: 'idle' | 'active' | 'completed';
@@ -19,13 +27,21 @@ interface InterviewState {
   setStatus: (status: 'idle' | 'active' | 'completed') => void;
 
   // Code
-  language: string; 
+  language: string;
   code: string;
   workspaceId: string | null;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
   setWorkspaceId: (id: string | null) => void;
-  
+
+  // Workspace Status (for progress indicator)
+  workspaceStatus: WorkspaceStatus;
+  workspaceProgress: WorkspaceProgress;
+  workspaceError: string | null;
+  setWorkspaceStatus: (status: WorkspaceStatus) => void;
+  setWorkspaceProgress: (progress: WorkspaceProgress) => void;
+  setWorkspaceError: (error: string | null) => void;
+
   // Console
   consoleOutput: { type: 'stdout' | 'stderr' | 'system' | 'agent'; content: string }[];
   addLog: (log: string, type?: 'stdout' | 'stderr' | 'system' | 'agent') => void;
@@ -34,7 +50,7 @@ interface InterviewState {
   // Analysis
   latestReview: ReviewResult | null;
   setReview: (review: ReviewResult | null) => void;
-  
+
   // CodeRabbit Analysis
   coderabbitReview: CodeRabbitReview | null;
   setCodeRabbitReview: (review: CodeRabbitReview | null) => void;
@@ -71,10 +87,18 @@ export const useInterviewStore = create<InterviewState>()(
       setLanguage: (language) => set({ language }),
       setWorkspaceId: (id) => set({ workspaceId: id }),
 
+      // Workspace Status
+      workspaceStatus: 'idle',
+      workspaceProgress: { step: '', progress: 0 },
+      workspaceError: null,
+      setWorkspaceStatus: (workspaceStatus) => set({ workspaceStatus }),
+      setWorkspaceProgress: (workspaceProgress) => set({ workspaceProgress }),
+      setWorkspaceError: (workspaceError) => set({ workspaceError }),
+
       // Console
       consoleOutput: [],
-      addLog: (log, type = 'system') => set((state) => ({ 
-        consoleOutput: [...state.consoleOutput, { type, content: log }] 
+      addLog: (log, type = 'system') => set((state) => ({
+        consoleOutput: [...state.consoleOutput, { type, content: log }]
       })),
       clearLogs: () => set({ consoleOutput: [] }),
 
@@ -122,7 +146,7 @@ export const useInterviewStore = create<InterviewState>()(
     }),
     {
       name: 'interview-storage',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<InterviewState>;
@@ -147,6 +171,15 @@ export const useInterviewStore = create<InterviewState>()(
               code: "# Write your solution here\nprint('Hello World')"
             };
           }
+        }
+        if (version === 2) {
+          // Migrate from version 2: Add workspace status fields
+          return {
+            ...state,
+            workspaceStatus: 'idle',
+            workspaceProgress: { step: '', progress: 0 },
+            workspaceError: null
+          };
         }
         return state as InterviewState;
       },
