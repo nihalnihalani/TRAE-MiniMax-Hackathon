@@ -8,7 +8,7 @@ describe.skipIf(!runIntegration)('DaytonaService Integration', () => {
   it('should create and cleanup a real workspace', async () => {
     // 1. Create
     console.log('Creating integration workspace...');
-    const workspace = await daytonaService.createWorkspace('python');
+    const workspace = await daytonaService.createWorkspace({ language: 'python' });
     expect(workspace.id).toBeDefined();
 
     // 2. Execute simple code
