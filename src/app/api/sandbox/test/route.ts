@@ -1,28 +1,19 @@
 import { daytonaService } from '@/lib/daytona';
 import * as Sentry from "@sentry/nextjs";
-import { isValidWorkspaceId, isValidCode, MAX_CODE_SIZE } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { TestCodeRequestSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { workspaceId, testCode, language } = body;
 
-    if (!workspaceId || !testCode) {
-      return errorResponse('Workspace ID and test code are required', 400, 'MISSING_PARAMS');
+    // Validate request using Zod schema
+    const validation = validateRequest(TestCodeRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    if (!isValidWorkspaceId(workspaceId)) {
-      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
-    }
-
-    if (!isValidCode(testCode)) {
-      return errorResponse(
-        `Invalid test code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
-        400,
-        'INVALID_CODE'
-      );
-    }
+    const { workspaceId, testCode, language, timeout } = validation.data!;
 
     // Use codeRun for direct execution (no file needed for tests)
     // This is cleaner and doesn't leave test files behind
@@ -30,7 +21,7 @@ export async function POST(request: Request) {
       workspaceId,
       testCode,
       language || 'python',
-      60000 // 60 second timeout for tests
+      timeout || 60000 // 60 second timeout for tests
     );
 
     // We don't treat non-zero exit code as a server error here,

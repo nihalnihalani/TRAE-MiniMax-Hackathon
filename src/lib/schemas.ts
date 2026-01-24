@@ -146,6 +146,19 @@ export const TTSRequestSchema = z.object({
     voiceId: z.string().optional(),
 });
 
+export const ListFilesQuerySchema = z.object({
+    workspaceId: WorkspaceIdSchema,
+    path: PathSchema.optional().default('.'),
+});
+
+export const FileOperationRequestSchema = z.object({
+    workspaceId: WorkspaceIdSchema,
+    path: PathSchema,
+    operation: z.enum(['createDirectory', 'delete']).optional().default('createDirectory'),
+    mode: z.string().regex(/^[0-7]{3}$/, 'Mode must be 3 octal digits').optional().default('755'),
+    recursive: z.boolean().optional().default(false),
+});
+
 // ============================================================================
 // Response Schemas (for validation of external API responses)
 // ============================================================================
@@ -180,6 +193,8 @@ export type ReadFileRequest = z.infer<typeof ReadFileRequestSchema>;
 export type SaveFileRequest = z.infer<typeof SaveFileRequestSchema>;
 export type TestCodeRequest = z.infer<typeof TestCodeRequestSchema>;
 export type TTSRequest = z.infer<typeof TTSRequestSchema>;
+export type ListFilesQuery = z.infer<typeof ListFilesQuerySchema>;
+export type FileOperationRequest = z.infer<typeof FileOperationRequestSchema>;
 export type GeminiAnalysisResponse = z.infer<typeof GeminiAnalysisResponseSchema>;
 export type AutoFixResponse = z.infer<typeof AutoFixResponseSchema>;
 
