@@ -37,6 +37,16 @@ interface InterviewState {
   coderabbitReview: CodeRabbitReview | null;
   setCodeRabbitReview: (review: CodeRabbitReview | null) => void;
 
+  // Integrity
+  integrity: {
+    blurCount: number;
+    pasteCount: number;
+    largePasteEvents: { timestamp: number, length: number }[];
+  };
+  addBlurEvent: () => void;
+  addPasteEvent: (length: number) => void;
+  getIntegrityReport: () => string;
+
   // Demo / Wizard Mode
   isWizardMode: boolean;
   toggleWizardMode: () => void;
@@ -71,6 +81,36 @@ export const useInterviewStore = create<InterviewState>()(
       // CodeRabbit Analysis
       coderabbitReview: null,
       setCodeRabbitReview: (review) => set({ coderabbitReview: review }),
+
+      // Integrity
+      integrity: {
+        blurCount: 0,
+        pasteCount: 0,
+        largePasteEvents: []
+      },
+      addBlurEvent: () => set((state) => ({
+        integrity: {
+            ...state.integrity,
+            blurCount: state.integrity.blurCount + 1
+        }
+      })),
+      addPasteEvent: (length) => set((state) => {
+        const isLarge = length > 50;
+        return {
+            integrity: {
+                ...state.integrity,
+                pasteCount: state.integrity.pasteCount + 1,
+                largePasteEvents: isLarge 
+                    ? [...state.integrity.largePasteEvents, { timestamp: Date.now(), length }] 
+                    : state.integrity.largePasteEvents
+            }
+        };
+      }),
+      getIntegrityReport: () => {
+        const state = get();
+        const { blurCount, pasteCount, largePasteEvents } = state.integrity;
+        return `Integrity Report: User has left the tab ${blurCount} times. Detected ${pasteCount} paste events, with ${largePasteEvents.length} large pastes (>50 chars).`;
+      },
 
       // Wizard Mode
       isWizardMode: false,
