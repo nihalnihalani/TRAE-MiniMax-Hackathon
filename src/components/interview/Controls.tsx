@@ -44,7 +44,7 @@ export function Controls({ onRun, onAnalyze, onCodeRabbit, isRunning, isAnalyzin
             className="w-full border-orange-500/50 text-orange-500 hover:bg-orange-500/10 hover:text-orange-400"
         >
             <Rabbit className="w-4 h-4 mr-2" />
-            {isCodeRabbitLoading ? "Deep..." : "Deep Review"}
+            {isCodeRabbitLoading ? "CodeRabbit..." : "CodeRabbit Review"}
         </Button>
       </div>
 
