@@ -30,9 +30,11 @@ interface InterviewState {
   language: string;
   code: string;
   workspaceId: string | null;
+  currentProblemId: string | null;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
   setWorkspaceId: (id: string | null) => void;
+  setCurrentProblemId: (id: string | null) => void;
 
   // Workspace Status (for progress indicator)
   workspaceStatus: WorkspaceStatus;
@@ -83,9 +85,11 @@ export const useInterviewStore = create<InterviewState>()(
       language: 'python',
       code: "# Write your solution here\nprint('Hello World')",
       workspaceId: null,
+      currentProblemId: null,
       setCode: (code) => set({ code }),
       setLanguage: (language) => set({ language }),
       setWorkspaceId: (id) => set({ workspaceId: id }),
+      setCurrentProblemId: (id) => set({ currentProblemId: id }),
 
       // Workspace Status
       workspaceStatus: 'idle',
@@ -118,20 +122,20 @@ export const useInterviewStore = create<InterviewState>()(
       },
       addBlurEvent: () => set((state) => ({
         integrity: {
-            ...state.integrity,
-            blurCount: state.integrity.blurCount + 1
+          ...state.integrity,
+          blurCount: state.integrity.blurCount + 1
         }
       })),
       addPasteEvent: (length) => set((state) => {
         const isLarge = length > LARGE_PASTE_THRESHOLD;
         return {
-            integrity: {
-                ...state.integrity,
-                pasteCount: state.integrity.pasteCount + 1,
-                largePasteEvents: isLarge
-                    ? [...state.integrity.largePasteEvents, { timestamp: Date.now(), length }]
-                    : state.integrity.largePasteEvents
-            }
+          integrity: {
+            ...state.integrity,
+            pasteCount: state.integrity.pasteCount + 1,
+            largePasteEvents: isLarge
+              ? [...state.integrity.largePasteEvents, { timestamp: Date.now(), length }]
+              : state.integrity.largePasteEvents
+          }
         };
       }),
       getIntegrityReport: () => {
