@@ -160,15 +160,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 | Component | Tech | Icon |
 |-----------|------|------|
-| **Frontend** | **Next.js 16** | <img src="/icons/nextjs.png" width="48" alt="Next.js" /> |
-| | **React 19** | <img src="/icons/react.png" width="48" alt="React" /> |
-| | **Tailwind CSS** | <img src="/icons/tailwind.png" width="48" alt="Tailwind" /> |
-| **Infrastructure** | **Daytona SDK** | <img src="/icons/daytona.png" width="48" alt="Daytona" /> |
-| | **Docker** | <img src="/icons/docker.png" width="48" alt="Docker" /> |
-| **AI & Voice** | **ElevenLabs** | <img src="/icons/elevenlabs.png" width="48" alt="ElevenLabs" /> |
-| | **Gemini 3 Pro** | <img src="/icons/gemini.png" width="48" alt="Gemini" /> |
-| **Analysis** | **CodeRabbit** | <img src="/icons/coderabbit.png" width="48" alt="CodeRabbit" /> |
-| **Monitoring** | **Sentry** | <img src="/icons/sentry.png" width="48" alt="Sentry" /> |
+| **Frontend** | **Next.js 16** | <img src="public/icons/nextjs.png" width="48" alt="Next.js" /> |
+| | **React 19** | <img src="public/icons/react.png" width="48" alt="React" /> |
+| | **Tailwind CSS** | <img src="public/icons/tailwind.png" width="48" alt="Tailwind" /> |
+| **Infrastructure** | **Daytona SDK** | <img src="public/icons/daytona.png" width="48" alt="Daytona" /> |
+| | **Docker** | <img src="public/icons/docker.png" width="48" alt="Docker" /> |
+| **AI & Voice** | **ElevenLabs** | <img src="public/icons/elevenlabs.png" width="48" alt="ElevenLabs" /> |
+| | **Gemini 3 Pro** | <img src="public/icons/gemini.png" width="48" alt="Gemini" /> |
+| **Analysis** | **CodeRabbit** | <img src="public/icons/coderabbit.png" width="48" alt="CodeRabbit" /> |
+| **Monitoring** | **Sentry** | <img src="public/icons/sentry.png" width="48" alt="Sentry" /> |
 
 ## 🧪 Development & Testing
 
