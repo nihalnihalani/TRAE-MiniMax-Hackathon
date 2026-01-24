@@ -12,13 +12,19 @@ export interface CodeRabbitReview {
 
 export class CodeRabbitService {
   async analyzeCode(code: string, language: string): Promise<CodeRabbitReview> {
-    // For now, we default to the high-fidelity mock since we lack a real CLI token/setup
-    // In a real scenario, this would SSH into the Daytona sandbox and run the CLI.
-    console.log(`[CodeRabbit] Analyzing ${language} code...`);
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const useMock = process.env.NEXT_PUBLIC_USE_MOCK_CODERABBIT !== 'false';
 
+    if (useMock) {
+        console.log(`[CodeRabbit] Analyzing ${language} code (MOCK)...`);
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return this.getMockReview(code);
+    }
+
+    // Real implementation placeholder
+    console.log(`[CodeRabbit] Analyzing ${language} code (REAL)...`);
+    // In a real scenario, this would SSH into the Daytona sandbox and run the CLI.
+    // For now, fallback to mock until CLI is configured
     return this.getMockReview(code);
   }
 
