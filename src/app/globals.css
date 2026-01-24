@@ -114,6 +114,7 @@
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: transparent; /* Fallback/Required for some browsers */
     animation: shimmer 8s linear infinite;
   }
 
