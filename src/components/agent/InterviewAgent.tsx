@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { StatusIndicator } from './StatusIndicator';
 import { Visualizer } from './Visualizer';
 import { ThinkingIndicator } from './ThinkingIndicator';
-import { Mic, MicOff, Wand2 } from 'lucide-react';
+import { Mic, MicOff, Wand2, GraduationCap } from 'lucide-react';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { agentReasoning } from '@/lib/agent-reasoning';
 import { getAgentTools } from '@/lib/agent-tools';
 import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
 
 export function InterviewAgent() {
-    const { code, isWizardMode, workspaceId } = useInterviewStore();
+    const { code, isWizardMode, workspaceId, interviewMode } = useInterviewStore();
     const [scriptIndex, setScriptIndex] = useState(0);
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
@@ -169,8 +169,17 @@ export function InterviewAgent() {
                         disabled={status === 'connecting' || !workspaceId}
                         title={!workspaceId ? "Waiting for workspace..." : undefined}
                     >
-                        <Mic className="w-4 h-4 mr-2" />
-                        {!workspaceId ? "Initializing..." : "Start Interview"}
+                        {interviewMode === 'practice' ? (
+                            <GraduationCap className="w-4 h-4 mr-2" />
+                        ) : (
+                            <Mic className="w-4 h-4 mr-2" />
+                        )}
+                        {!workspaceId
+                            ? "Initializing..."
+                            : interviewMode === 'practice'
+                                ? "Start Practice"
+                                : "Start Interview"
+                        }
                     </Button>
                 )}
             </div>

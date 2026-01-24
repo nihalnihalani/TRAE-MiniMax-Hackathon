@@ -18,9 +18,11 @@ import { Loader2 } from "lucide-react";
 import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 import { Logo } from "@/components/ui/Logo";
 import { InterviewReportDialog } from "@/components/interview/InterviewReportDialog";
+import { PracticeReportDialog } from "@/components/practice/PracticeReportDialog";
 import { WorkspaceProgressIndicator } from "@/components/workspace/WorkspaceProgressIndicator";
-import { Shield, AlertTriangle } from "lucide-react";
+import { Shield, AlertTriangle, GraduationCap } from "lucide-react";
 import { PROBLEMS } from "@/data/problems";
+import { COMPANIES } from "@/data/company-problems";
 import { generateTestCode } from "@/lib/test-runner";
 
 export default function InterviewPage() {
@@ -40,7 +42,12 @@ export default function InterviewPage() {
     setWorkspaceStatus,
     setWorkspaceProgress,
     setWorkspaceError,
-    currentProblemId
+    currentProblemId,
+    setCurrentProblemId,
+    interviewMode,
+    setInterviewMode,
+    selectedCompanyId,
+    setSelectedCompanyId,
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
@@ -58,6 +65,24 @@ export default function InterviewPage() {
     const timer = setTimeout(() => setMounted(true), 0);
     return () => clearTimeout(timer);
   }, []);
+
+  // Initialize interview mode and problem
+  useEffect(() => {
+    // If in practice mode but no company/problem selected, user navigated directly - reset to real mode
+    if (interviewMode === 'practice' && (!selectedCompanyId || !currentProblemId)) {
+      setInterviewMode('real');
+      setSelectedCompanyId(null);
+      setCurrentProblemId(PROBLEMS[0].id);
+      setCode(PROBLEMS[0].starterCode);
+      return;
+    }
+
+    // For regular interview mode, ensure a problem is selected
+    if (interviewMode !== 'practice' && !currentProblemId && PROBLEMS.length > 0) {
+      setCurrentProblemId(PROBLEMS[0].id);
+      setCode(PROBLEMS[0].starterCode);
+    }
+  }, [interviewMode, currentProblemId, selectedCompanyId, setCurrentProblemId, setCode, setInterviewMode, setSelectedCompanyId]);
 
   // Initialize workspace with progress tracking
   const initWorkspace = async () => {
@@ -126,8 +151,15 @@ export default function InterviewPage() {
     clearLogs();
     addLog("Running tests...");
 
-    // Find current problem and generate test code
-    const currentProblem = PROBLEMS.find(p => p.id === currentProblemId);
+    // Find current problem from either regular problems or company-specific problems
+    let currentProblem = PROBLEMS.find(p => p.id === currentProblemId);
+
+    // Check company problems if in practice mode and not found in regular problems
+    if (!currentProblem && interviewMode === 'practice' && selectedCompanyId) {
+      const company = COMPANIES.find(c => c.id === selectedCompanyId);
+      currentProblem = company?.problems.find(p => p.id === currentProblemId);
+    }
+
     const testCode = currentProblem
       ? generateTestCode(currentProblem, codeToRun)
       : codeToRun;
@@ -287,7 +319,12 @@ export default function InterviewPage() {
           <Logo size={24} />
           Daytona Interview Sandbox
         </div>
-        <div className="text-xs text-muted-foreground flex items-center gap-2">
+        <div className="text-xs text-muted-foreground flex items-center gap-4">
+          {interviewMode === 'practice' && (
+            <span className="text-primary flex items-center gap-1 bg-primary/10 px-2 py-1 rounded">
+              <GraduationCap className="w-3 h-3" /> Practice Mode
+            </span>
+          )}
           {workspaceId ? (
             <span className="text-green-500 flex items-center gap-1">
               <Shield className="w-3 h-3" /> Shield Active
@@ -370,7 +407,11 @@ export default function InterviewPage() {
         </ResizablePanelGroup>
       </div>
 
-      <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
+      {interviewMode === 'practice' ? (
+        <PracticeReportDialog open={showReport} onOpenChange={setShowReport} />
+      ) : (
+        <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
+      )}
 
       {/* Workspace Progress Indicator */}
       <WorkspaceProgressIndicator onRetry={initWorkspace} />

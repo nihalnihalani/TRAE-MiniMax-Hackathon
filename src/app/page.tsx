@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/ui/Logo";
-import { Mic, Code2, Sparkles, ArrowRight, Video, Lock } from "lucide-react";
+import { Mic, Code2, Sparkles, ArrowRight, Video, Lock, GraduationCap } from "lucide-react";
 import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
+import { StartInterviewButton } from "@/components/interview/StartInterviewButton";
 
 export default function Home() {
   return (
@@ -24,9 +25,7 @@ export default function Home() {
             <Link href="/test">
               <Button variant="ghost">Smoke Test</Button>
             </Link>
-            <Link href="/interview">
-              <Button>Start Interview</Button>
-            </Link>
+            <StartInterviewButton size="default" showIcon={false} />
           </div>
         </div>
       </header>
@@ -52,14 +51,16 @@ export default function Home() {
             Real-time coding, deep analysis, and instant feedback in a secure Daytona sandbox.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 animate-slide-up-fade pt-4" style={{ animationDelay: '600ms' }}>
-            <Link href="/interview">
-              <Button size="lg" className="h-14 px-8 text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 rounded-full">
-                Start Interview with Alexis <ArrowRight className="ml-2 w-5 h-5" />
+          <div className="flex flex-wrap justify-center gap-4 animate-slide-up-fade" style={{ animationDelay: '600ms' }}>
+            <StartInterviewButton size="lg" className="h-14 px-8 text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 rounded-full" />
+            <Link href="/practice">
+              <Button variant="outline" size="lg" className="h-14 px-8 text-lg rounded-full transition-all duration-300">
+                <GraduationCap className="mr-2 w-5 h-5" />
+                Practice Mode
               </Button>
             </Link>
             <Link href="https://github.com/daytonaio/sdk" target="_blank">
-              <Button variant="outline" size="lg" className="h-14 px-8 text-lg rounded-full transition-all duration-300">
+              <Button variant="ghost" size="lg" className="h-14 px-8 text-lg rounded-full transition-all duration-300">
                 View on GitHub
               </Button>
             </Link>
