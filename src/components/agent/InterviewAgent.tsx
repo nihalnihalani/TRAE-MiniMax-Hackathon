@@ -16,7 +16,7 @@ const WIZARD_SCRIPT = [
 ];
 
 export function InterviewAgent() {
-  const { code, isWizardMode } = useInterviewStore();
+  const { code, isWizardMode, workspaceId } = useInterviewStore();
   const [scriptIndex, setScriptIndex] = useState(0);
 
   const conversation = useConversation({
@@ -24,9 +24,56 @@ export function InterviewAgent() {
     onMessage: (message: any) => console.log("Agent:", message),
     onError: (err: any) => console.error("Voice Error", err),
     clientTools: {
-      read_candidate_code: async () => {
-        console.log("Agent requested code:", code);
-        return code; 
+      read_sandbox_file: async ({ path }: { path: string }) => {
+        console.log("Agent requested file read:", path);
+        if (!workspaceId) return "No active workspace.";
+        
+        try {
+            const response = await fetch('/api/sandbox/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId, path })
+            });
+            const data = await response.json();
+            return data.content || "File not found or empty.";
+        } catch (e) {
+            console.error(e);
+            return "Error reading file.";
+        }
+      },
+      run_coderabbit_analysis: async () => {
+         console.log("Agent requested CodeRabbit analysis");
+         if (!workspaceId) return "No active workspace.";
+
+         try {
+             const response = await fetch('/api/analysis/coderabbit', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ workspaceId }) // CodeRabbit CLI reads from FS directly
+             });
+             const data = await response.json();
+             return JSON.stringify(data);
+         } catch (e) {
+             console.error(e);
+             return "Error running analysis.";
+         }
+      },
+      run_code: async () => {
+         console.log("Agent requested code execution");
+         if (!workspaceId) return "No active workspace.";
+         // Trigger execution via API
+         // Note: This duplicates the "Run" button logic but gives Agent control
+         try {
+             const response = await fetch('/api/sandbox/execute', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ workspaceId, code, language: 'python' }) // default to python for now
+             });
+             const result = await response.json();
+             return `Exit Code: ${result.isError ? 1 : 0}\nStdout: ${result.stdout}\nStderr: ${result.stderr}`;
+         } catch (e) {
+             return "Error executing code.";
+         }
       }
     }
   });
