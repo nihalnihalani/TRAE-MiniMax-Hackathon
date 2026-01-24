@@ -1,30 +1,29 @@
-# Phase 3: ElevenLabs Conversational Agent
+# Phase 3: ElevenLabs Conversational Agent (Multimodal Update)
 
 ## Goal
-Configure and integrate the "Interviewer" persona. The key differentiator is the **Custom Tool** that allows the agent to read the code currently in the editor, enabling context-aware feedback.
+Integrate the ElevenLabs Conversational AI agent (v0.13+) to act as the interviewer. We leverage the new **Multimodal** capabilities (simultaneous text/speech) and **Conversation Overrides** for dynamic persona adjustments.
 
 ## Detailed Implementation Steps
 
 ### 1. Agent Configuration (ElevenLabs Dashboard)
-*   **Name**: "Alex - Senior Engineer"
-*   **System Prompt** (Copy this exact text):
-    > "You are Alex, a senior software engineer conducting a technical interview. Your goal is to assess the candidate's problem-solving skills, not just their syntax.
+*   **Name**: "Alex - Senior Engineer (Gemini Powered)"
+*   **System Prompt** (Update to explicitly reference reasoning):
+    > "You are Alex, a senior software engineer conducting a technical interview. You are powered by **Gemini 3 Pro**, so use your advanced reasoning capabilities to catch subtle logical errors, not just syntax issues.
     >
-    > You have access to a tool called `read_candidate_code`. Use it periodically to see what the candidate is writing.
+    > You have access to a tool called `read_candidate_code`. Use it to see what the candidate is writing.
     >
     > Guidelines:
     > 1. Be encouraging but professional.
     > 2. If the candidate is silent for too long, ask them to explain their thought process.
-    > 3. If you see them writing inefficient code (e.g., O(n^2) nested loops for a sorted array), gently ask: 'I notice you're using a nested loop. Is there a way to optimize this given the data is sorted?'
-    > 4. Do NOT give the answer directly. Guide them."
+    > 3. If you see them writing inefficient code (e.g., O(n^2) nested loops), gently guide them.
+    > 4. Use the `spelling_patience` feature if they start spelling out variable names."
 
 *   **Tool Definition (`read_candidate_code`)**:
     *   **Description**: "Reads the current code in the candidate's editor."
-    *   **Parameters**: `{}` (None required, or maybe `filename`).
     *   **Return**: Returns the raw string content of the code.
 
 ### 2. Client-Side Integration (`src/components/agent/InterviewAgent.tsx`)
-Use the `useConversation` hook from `@elevenlabs/react`.
+Use the updated `useConversation` hook with client tools.
 
 ```typescript
 import { useConversation } from '@elevenlabs/react';
@@ -33,6 +32,7 @@ export function InterviewAgent() {
   const { status, startConversation, stopConversation } = useConversation({
     onConnect: () => console.log("Connected"),
     onMessage: (message) => console.log("Agent:", message),
+    onError: (err) => console.error("Voice Error", err),
     // The client tool callback
     clientTools: {
       read_candidate_code: async () => {
@@ -43,31 +43,45 @@ export function InterviewAgent() {
     }
   });
 
+  const handleStart = async () => {
+     await startConversation({
+        // New in v0.13: Overrides
+        overrides: {
+           agent: {
+              language: "en",
+              prompt: {
+                 // Dynamic injection if needed
+                 firstMessage: "Hello! I'm Alex. Ready to code?"
+              }
+           }
+        }
+     });
+  };
+
   return (
     <div>
       <StatusIndicator status={status} /> {/* connected, connecting, disconnected */}
       <Visualizer />
-      <Button onClick={startConversation}>Start Interview</Button>
+      <Button onClick={handleStart}>Start Interview</Button>
     </div>
   );
 }
 ```
 
-### 3. Visualizer
-*   Implement a simple canvas-based visualizer using the `analyserNode` from the web audio context provided by the SDK (if available) or simple CSS animations based on `status === 'speaking'`.
+### 3. Visualizer & Feedback
+*   Implement a simple canvas-based visualizer.
+*   **Latency Check**: Ensure the "Listening" state triggers immediately when the user speaks (WebRTC benefit).
 
 ## Debugging & Verification
 
-### Step 1: Text-Only Test
-Before hooking up voice:
-*   Use the "Test" feature in the ElevenLabs dashboard with the defined tool.
-*   Simulate the tool return value.
-*   **Check**: Does the agent respond correctly to the simulated code?
-
-### Step 2: Tool Invocation Log
+### Step 1: Tool Invocation Log
 *   Add a `console.log("Agent requested code!")` inside the `read_candidate_code` callback.
 *   Start the interview and say "Can you check my code?".
-*   **Check**: Verify the log appears in the browser console. This confirms the agent successfully triggered the client-side tool.
+*   **Check**: Verify the log appears in the browser console.
+
+### Step 2: Interruptibility Test
+*   While the agent is speaking a long sentence, start talking.
+*   **Expected**: The agent should stop speaking immediately (Echo cancellation + VAD working).
 
 ### Step 3: Audio Permissions
 *   Ensure browser asks for Microphone permission immediately upon clicking "Start".
