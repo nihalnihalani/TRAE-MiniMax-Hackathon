@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { daytonaService } from '@/lib/daytona';
+import * as Sentry from "@sentry/nextjs";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,20 @@ export async function POST(request: Request) {
     }
 
     const result = await daytonaService.executeCode(workspaceId, code, language || 'python');
+    
+    // Sentry Monitoring for Runtime Errors
+    if (result.exitCode !== 0 || result.stderr) {
+        Sentry.withScope((scope) => {
+            scope.setTag("section", "sandbox_execution");
+            scope.setTag("language", language || 'python');
+            scope.setExtra("workspaceId", workspaceId);
+            scope.setExtra("stdout", result.stdout);
+            
+            // Capture the runtime error as an exception to appear in Sentry Issues
+            Sentry.captureException(new Error(`Sandbox Runtime Error: ${result.stderr || 'Non-zero exit code'}`));
+        });
+    }
+
     return NextResponse.json({
         stdout: result.stdout,
         stderr: result.stderr,
@@ -18,6 +33,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('API Execute Code Error:', error);
+    Sentry.captureException(error);
     return NextResponse.json({ error: 'Failed to execute code' }, { status: 500 });
   }
 }
