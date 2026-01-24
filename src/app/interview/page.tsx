@@ -1,9 +1,9 @@
 'use client';
 
-import { 
-  ResizableHandle, 
-  ResizablePanel, 
-  ResizablePanelGroup 
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup
 } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProblemDescription } from "@/components/interview/ProblemDescription";
@@ -20,6 +20,8 @@ import { Logo } from "@/components/ui/Logo";
 import { InterviewReportDialog } from "@/components/interview/InterviewReportDialog";
 import { WorkspaceProgressIndicator } from "@/components/workspace/WorkspaceProgressIndicator";
 import { Shield, AlertTriangle } from "lucide-react";
+import { PROBLEMS } from "@/data/problems";
+import { generateTestCode } from "@/lib/test-runner";
 
 export default function InterviewPage() {
   const {
@@ -37,7 +39,8 @@ export default function InterviewPage() {
     workspaceStatus,
     setWorkspaceStatus,
     setWorkspaceProgress,
-    setWorkspaceError
+    setWorkspaceError,
+    currentProblemId
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
@@ -116,20 +119,26 @@ export default function InterviewPage() {
 
   const handleRun = async (codeToRun: string) => {
     if (!workspaceId) {
-        addLog("Error: Workspace not ready.");
-        return;
+      addLog("Error: Workspace not ready.");
+      return;
     }
     setIsRunning(true);
     clearLogs();
-    addLog("Running...");
-    
+    addLog("Running tests...");
+
+    // Find current problem and generate test code
+    const currentProblem = PROBLEMS.find(p => p.id === currentProblemId);
+    const testCode = currentProblem
+      ? generateTestCode(currentProblem, codeToRun)
+      : codeToRun;
+
     try {
       const res = await fetch('/api/sandbox/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId,
-          code: codeToRun,
+          code: testCode,
           language: 'python'
         }),
       });
@@ -151,7 +160,7 @@ export default function InterviewPage() {
       if (!data.stdout && !data.stderr) addLog("No output returned.", 'system');
 
     } catch (err) {
-        addLog(`System Error: ${err}`, 'stderr');
+      addLog(`System Error: ${err}`, 'stderr');
     } finally {
       setIsRunning(false);
     }
@@ -159,44 +168,44 @@ export default function InterviewPage() {
 
   const handleAutoFix = async () => {
     if (!lastError || !code) return;
-    
+
     setIsFixing(true);
     addLog("Agent is analyzing error pattern...", 'agent');
-    
+
     try {
-        const res = await fetch('/api/analysis/autofix', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code,
-                error: lastError,
-                language: 'python',
-                workspaceId
-            })
-        });
-        const json = await res.json();
-        // Handle both direct and wrapped response formats
-        const data = json.data || json;
+      const res = await fetch('/api/analysis/autofix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          error: lastError,
+          language: 'python',
+          workspaceId
+        })
+      });
+      const json = await res.json();
+      // Handle both direct and wrapped response formats
+      const data = json.data || json;
 
-        if (data.fixedCode) {
-            setCode(data.fixedCode);
-            addLog("✨ Agent applied fix to code.", 'agent');
+      if (data.fixedCode) {
+        setCode(data.fixedCode);
+        addLog("✨ Agent applied fix to code.", 'agent');
 
-            if (data.installedPackages && data.installedPackages.length > 0) {
-                data.installedPackages.forEach((pkg: string) => {
-                    addLog(`📦 Agent installed ${pkg}`, 'agent');
-                });
-            }
-
-            setLastError(null); // Clear error state
-        } else {
-            addLog("Agent could not determine a fix.", 'system');
+        if (data.installedPackages && data.installedPackages.length > 0) {
+          data.installedPackages.forEach((pkg: string) => {
+            addLog(`📦 Agent installed ${pkg}`, 'agent');
+          });
         }
+
+        setLastError(null); // Clear error state
+      } else {
+        addLog("Agent could not determine a fix.", 'system');
+      }
     } catch (err) {
-        console.error(err);
-        addLog("Auto-fix service failed.", 'stderr');
+      console.error(err);
+      addLog("Auto-fix service failed.", 'stderr');
     } finally {
-        setIsFixing(false);
+      setIsFixing(false);
     }
   };
 
@@ -227,24 +236,24 @@ export default function InterviewPage() {
     setActiveTab('coderabbit');
     setCodeRabbitReview(null);
     try {
-        const res = await fetch('/api/analysis/coderabbit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code,
-                language: 'python',
-                workspaceId
-            }),
-        });
-        const json = await res.json();
-        // Handle both direct and wrapped response formats
-        const data = json.data || json;
-        setCodeRabbitReview(data);
+      const res = await fetch('/api/analysis/coderabbit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          language: 'python',
+          workspaceId
+        }),
+      });
+      const json = await res.json();
+      // Handle both direct and wrapped response formats
+      const data = json.data || json;
+      setCodeRabbitReview(data);
     } catch (err) {
-        console.error(err);
-        addLog("CodeRabbit Analysis failed.");
+      console.error(err);
+      addLog("CodeRabbit Analysis failed.");
     } finally {
-        setIsCodeRabbitLoading(false);
+      setIsCodeRabbitLoading(false);
     }
   };
 
@@ -252,97 +261,97 @@ export default function InterviewPage() {
 
   return (
     <div id="interface-container" className="h-screen w-full bg-background overflow-hidden flex flex-col">
-       <header className="h-12 border-b flex items-center px-4 justify-between bg-card z-10">
-          <div className="font-bold flex items-center gap-2">
-            <Logo size={24} />
-            Daytona Interview Sandbox
-          </div>
-          <div className="text-xs text-muted-foreground flex items-center gap-2">
-            {workspaceId ? (
-                <span className="text-green-500 flex items-center gap-1">
-                    <Shield className="w-3 h-3" /> Shield Active
-                </span>
-            ) : (
-                <span className="text-yellow-500 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Initializing
-                </span>
-            )}
-          </div>
-       </header>
+      <header className="h-12 border-b flex items-center px-4 justify-between bg-card z-10">
+        <div className="font-bold flex items-center gap-2">
+          <Logo size={24} />
+          Daytona Interview Sandbox
+        </div>
+        <div className="text-xs text-muted-foreground flex items-center gap-2">
+          {workspaceId ? (
+            <span className="text-green-500 flex items-center gap-1">
+              <Shield className="w-3 h-3" /> Shield Active
+            </span>
+          ) : (
+            <span className="text-yellow-500 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Initializing
+            </span>
+          )}
+        </div>
+      </header>
 
-       <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal">
-            {/* Left Panel: Problem Description */}
-            <ResizablePanel defaultSize={25} minSize={20}>
-                <ProblemDescription />
-            </ResizablePanel>
-            
-            <ResizableHandle />
+          {/* Left Panel: Problem Description */}
+          <ResizablePanel defaultSize={25} minSize={20}>
+            <ProblemDescription />
+          </ResizablePanel>
 
-            {/* Center Panel: Editor & Console */}
-            <ResizablePanel defaultSize={50} minSize={30}>
-                <ResizablePanelGroup direction="vertical">
-                    <ResizablePanel defaultSize={70}>
-                        <CodeEditor 
-                            language="python"
-                            initialCode={code}
-                            onChange={(val) => setCode(val || "")}
-                            onRun={() => handleRun(code)}
-                            isRunning={isRunning}
-                        />
-                    </ResizablePanel>
-                    <ResizableHandle />
-                    <ResizablePanel defaultSize={30} minSize={10}>
-                        <ConsolePanel output={consoleOutput} />
-                    </ResizablePanel>
-                </ResizablePanelGroup>
-            </ResizablePanel>
+          <ResizableHandle />
 
-            <ResizableHandle />
+          {/* Center Panel: Editor & Console */}
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel defaultSize={70}>
+                <CodeEditor
+                  language="python"
+                  initialCode={code}
+                  onChange={(val) => setCode(val || "")}
+                  onRun={() => handleRun(code)}
+                  isRunning={isRunning}
+                />
+              </ResizablePanel>
+              <ResizableHandle />
+              <ResizablePanel defaultSize={30} minSize={10}>
+                <ConsolePanel output={consoleOutput} />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ResizablePanel>
 
-            {/* Right Panel: Agent & Controls */}
-            <ResizablePanel defaultSize={25} minSize={20} className="bg-card border-l">
-                <div className="flex flex-col h-full overflow-hidden">
-                    <div className="p-4 border-b">
-                        <InterviewAgent />
-                    </div>
-                    
-                    <Controls 
-                        onRun={() => handleRun(code)} 
-                        onAnalyze={handleAnalyze}
-                        onCodeRabbit={handleCodeRabbit}
-                        onAutoFix={handleAutoFix}
-                        onEndInterview={() => setShowReport(true)}
-                        isRunning={isRunning}
-                        isAnalyzing={isAnalyzing}
-                        isCodeRabbitLoading={isCodeRabbitLoading}
-                        isFixing={isFixing}
-                        hasError={!!lastError}
-                    />
+          <ResizableHandle />
 
-                    <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-                        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
-                            <TabsList className="grid w-full grid-cols-2 mb-4">
-                                <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
-                                <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="gemini" className="flex-1 mt-0">
-                                <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
-                            </TabsContent>
-                            <TabsContent value="coderabbit" className="flex-1 mt-0">
-                                <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
-                            </TabsContent>
-                        </Tabs>
-                    </div>
-                </div>
-            </ResizablePanel>
+          {/* Right Panel: Agent & Controls */}
+          <ResizablePanel defaultSize={25} minSize={20} className="bg-card border-l">
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="p-4 border-b">
+                <InterviewAgent />
+              </div>
+
+              <Controls
+                onRun={() => handleRun(code)}
+                onAnalyze={handleAnalyze}
+                onCodeRabbit={handleCodeRabbit}
+                onAutoFix={handleAutoFix}
+                onEndInterview={() => setShowReport(true)}
+                isRunning={isRunning}
+                isAnalyzing={isAnalyzing}
+                isCodeRabbitLoading={isCodeRabbitLoading}
+                isFixing={isFixing}
+                hasError={!!lastError}
+              />
+
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
+                    <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="gemini" className="flex-1 mt-0">
+                    <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
+                  </TabsContent>
+                  <TabsContent value="coderabbit" className="flex-1 mt-0">
+                    <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+          </ResizablePanel>
         </ResizablePanelGroup>
-       </div>
+      </div>
 
-       <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
+      <InterviewReportDialog open={showReport} onOpenChange={setShowReport} />
 
-       {/* Workspace Progress Indicator */}
-       <WorkspaceProgressIndicator onRetry={initWorkspace} />
+      {/* Workspace Progress Indicator */}
+      <WorkspaceProgressIndicator onRetry={initWorkspace} />
     </div>
   );
 }

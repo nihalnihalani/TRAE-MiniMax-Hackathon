@@ -10,6 +10,11 @@ export interface Problem {
   }[];
   constraints: string[];
   starterCode: string;
+  functionName: string;
+  testCases: {
+    inputs: any[];
+    expected: any;
+  }[];
 }
 
 export const PROBLEMS: Problem[] = [
@@ -50,7 +55,13 @@ You can return the answer in any order.`,
     :rtype: List[int]
     """
     # Write your solution here
-    pass`
+    pass`,
+    functionName: 'two_sum',
+    testCases: [
+      { inputs: [[2, 7, 11, 15], 9], expected: [0, 1] },
+      { inputs: [[3, 2, 4], 6], expected: [1, 2] },
+      { inputs: [[3, 3], 6], expected: [0, 1] }
+    ]
   },
   {
     id: 'reverse-linked-list',
@@ -86,7 +97,13 @@ def reverse_list(head):
     :type head: ListNode
     :rtype: ListNode
     """
-    pass`
+    pass`,
+    functionName: 'reverse_list',
+    testCases: [
+      { inputs: [[1, 2, 3, 4, 5]], expected: [5, 4, 3, 2, 1] },
+      { inputs: [[1, 2]], expected: [2, 1] },
+      { inputs: [[]], expected: [] }
+    ]
   },
   {
     id: 'lru-cache',
@@ -136,6 +153,10 @@ lRUCache.get(1);    // return -1 (not found)`
 # Your LRUCache object will be instantiated and called as such:
 # obj = LRUCache(capacity)
 # param_1 = obj.get(key)
-# obj.put(key,value)`
+# obj.put(key,value)`,
+    functionName: 'LRUCache',
+    testCases: [
+      { inputs: [2, [["put", 1, 1], ["put", 2, 2], ["get", 1], ["put", 3, 3], ["get", 2]]], expected: [null, null, 1, null, -1] }
+    ]
   }
 ];
