@@ -1,43 +1,26 @@
 import { daytonaService } from '@/lib/daytona';
 import * as Sentry from "@sentry/nextjs";
-import { isValidWorkspaceId, isValidCode, isValidLanguage, VALID_LANGUAGES, MAX_CODE_SIZE } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { DEFAULT_EXECUTION_TIMEOUT } from '@/lib/constants';
+import { ExecuteCodeRequestSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // Validate request using Zod schema
+    const validation = validateRequest(ExecuteCodeRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
+    }
+
     const {
       workspaceId,
       code,
       language,
       timeout,
-      useFile, // Optional: force file-based execution
-    } = body;
-
-    if (!workspaceId || !code) {
-      return errorResponse('Workspace ID and code are required', 400, 'MISSING_PARAMS');
-    }
-
-    if (!isValidWorkspaceId(workspaceId)) {
-      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
-    }
-
-    if (!isValidCode(code)) {
-      return errorResponse(
-        `Invalid code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
-        400,
-        'INVALID_CODE'
-      );
-    }
-
-    if (language && !isValidLanguage(language)) {
-      return errorResponse(
-        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
-        400,
-        'INVALID_LANGUAGE'
-      );
-    }
+      useFile,
+    } = validation.data!;
 
     const lang = language || 'python';
     const timeoutMs = timeout || DEFAULT_EXECUTION_TIMEOUT;

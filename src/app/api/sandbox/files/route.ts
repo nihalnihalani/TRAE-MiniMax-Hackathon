@@ -1,25 +1,23 @@
 import { daytonaService } from '@/lib/daytona';
-import { isValidWorkspaceId, isValidPath } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { ListFilesQuerySchema, FileOperationRequestSchema, validateRequest } from '@/lib/schemas';
 
 // GET - List files in a directory
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const workspaceId = searchParams.get('workspaceId');
-    const path = searchParams.get('path') || '.';
+    const queryParams = {
+      workspaceId: searchParams.get('workspaceId') || '',
+      path: searchParams.get('path') || '.',
+    };
 
-    if (!workspaceId) {
-      return errorResponse('Workspace ID is required', 400, 'MISSING_WORKSPACE_ID');
+    // Validate query params using Zod schema
+    const validation = validateRequest(ListFilesQuerySchema, queryParams);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    if (!isValidWorkspaceId(workspaceId)) {
-      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
-    }
-
-    if (!isValidPath(path)) {
-      return errorResponse('Invalid path', 400, 'INVALID_PATH');
-    }
+    const { workspaceId, path } = validation.data!;
 
     const files = await daytonaService.listFiles(workspaceId, path);
     return successResponse({ files });
@@ -32,30 +30,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { workspaceId, path, mode, operation } = body;
 
-    if (!workspaceId || !path) {
-      return errorResponse('Workspace ID and path are required', 400, 'MISSING_PARAMS');
+    // Validate request using Zod schema
+    const validation = validateRequest(FileOperationRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    if (!isValidWorkspaceId(workspaceId)) {
-      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
-    }
+    const { workspaceId, path, operation, mode, recursive } = validation.data!;
 
-    if (!isValidPath(path)) {
-      return errorResponse('Invalid path', 400, 'INVALID_PATH');
-    }
-
-    // Default operation is createDirectory
-    const op = operation || 'createDirectory';
-
-    switch (op) {
+    switch (operation) {
       case 'createDirectory':
-        await daytonaService.createDirectory(workspaceId, path, mode || '755');
+        await daytonaService.createDirectory(workspaceId, path, mode);
         return successResponse({ created: true, path });
 
       case 'delete':
-        const recursive = body.recursive === true;
         await daytonaService.deleteFile(workspaceId, path, recursive);
         return successResponse({ deleted: true, path });
 
