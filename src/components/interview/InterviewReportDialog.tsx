@@ -8,9 +8,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Shield, AlertTriangle, CheckCircle, XCircle, Code, Brain } from "lucide-react";
+import { Shield, AlertTriangle, CheckCircle, XCircle, Code, Brain, Loader2, FileDown } from "lucide-react";
 import { useInterviewStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface InterviewReportDialogProps {
   open: boolean;
@@ -37,7 +39,19 @@ function calculateIntegrityScore(integrity: {
 }
 
 export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDialogProps) {
-  const { integrity, latestReview, coderabbitReview } = useInterviewStore();
+  const {
+    integrity,
+    latestReview,
+    coderabbitReview,
+    code,
+    transcript,
+    testResults,
+    currentProblemId
+  } = useInterviewStore();
+
+  const [aiReport, setAiReport] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const integrityScore = calculateIntegrityScore(integrity);
   const isIntegrityGood = integrityScore > 70;
@@ -45,9 +59,60 @@ export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDia
   const codeQualityScore = latestReview ? latestReview.score : 0;
   const hireRecommendation = (integrityScore > 60 && codeQualityScore >= 7) ? "HIRE" : "NO HIRE";
 
+  // Generate AI report when dialog opens
+  useEffect(() => {
+    if (open && !aiReport && !isGenerating) {
+      generateReport();
+    }
+  }, [open]);
+
+  const generateReport = async () => {
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/interview/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          code,
+          language: 'python',
+          testResults,
+          integrity,
+          codeAnalysis: latestReview ? {
+            score: latestReview.score,
+            security_score: latestReview.security_score,
+            complexity: latestReview.complexity,
+            issues: latestReview.issues,
+            security_issues: latestReview.security_issues || []
+          } : undefined,
+          coderabbitReview: coderabbitReview ? {
+            summary: coderabbitReview.summary,
+            issues: coderabbitReview.issues || []
+          } : undefined,
+          problemId: currentProblemId || 'Coding Challenge'
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.friendlyMessage?.message || data.error || 'Failed to generate report');
+      }
+
+      setAiReport(data.data.report);
+    } catch (err) {
+      console.error('Failed to generate AI report:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate report');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             Interview Final Report
@@ -56,99 +121,86 @@ export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDia
             </span>
           </DialogTitle>
           <DialogDescription>
-            Comprehensive analysis of the candidate's performance and integrity.
+            Comprehensive AI-powered analysis of the candidate's performance and integrity.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+        {/* AI Generated Report */}
+        {isGenerating ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <Loader2 className="w-12 h-12 animate-spin text-primary" />
+            <p className="text-muted-foreground">Generating comprehensive interview report with Gemini...</p>
+            <p className="text-sm text-muted-foreground">Analyzing conversation, code quality, and test results...</p>
+          </div>
+        ) : error ? (
+          <Card className="border-red-500">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-red-500 mb-4">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="font-semibold">Report Generation Failed</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">{error}</p>
+              <Button onClick={generateReport} variant="outline">
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        ) : aiReport ? (
+          <div className="prose prose-sm max-w-none dark:prose-invert">
+            <ReactMarkdown>{aiReport}</ReactMarkdown>
+          </div>
+        ) : null}
+
+        {/* Quick Metrics Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t">
           {/* Integrity Section */}
           <Card className={`border-l-4 ${isIntegrityGood ? "border-l-green-500" : "border-l-red-500"}`}>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Shield className="w-5 h-5" /> Integrity Check
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Shield className="w-4 h-4" /> Integrity
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold mb-2">{integrityScore}%</div>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Tab Focus Lost:</span>
-                  <span className={integrity.blurCount > 0 ? "text-red-500 font-bold" : "text-green-500"}>
-                    {integrity.blurCount} times
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Small Pastes:</span>
-                  <span className={integrity.pasteCount - integrity.largePasteEvents.length > 0 ? "text-yellow-500" : "text-green-500"}>
-                    {integrity.pasteCount - integrity.largePasteEvents.length} detected
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Large Pastes (high risk):</span>
-                  <span className={integrity.largePasteEvents.length > 0 ? "text-red-500 font-bold" : "text-green-500"}>
-                    {integrity.largePasteEvents.length} detected
-                  </span>
-                </div>
+              <div className="text-2xl font-bold">{integrityScore}%</div>
+            </CardContent>
+          </Card>
+
+          {/* AI Score */}
+          <Card className="border-l-4 border-l-blue-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Brain className="w-4 h-4" /> Code Quality
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{latestReview ? `${latestReview.score}/10` : "N/A"}</div>
+            </CardContent>
+          </Card>
+
+          {/* Test Results */}
+          <Card className="border-l-4 border-l-purple-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Code className="w-4 h-4" /> Tests
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {testResults.length > 0
+                  ? `${testResults[testResults.length - 1].testsPassed}/${testResults[testResults.length - 1].testsTotal}`
+                  : "0/0"
+                }
               </div>
             </CardContent>
           </Card>
-
-          {/* AI Analysis Score */}
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Brain className="w-5 h-5" /> AI Evaluation
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold mb-2">{latestReview ? `${latestReview.score}/10` : "N/A"}</div>
-              <p className="text-sm text-muted-foreground">
-                {latestReview ? latestReview.complexity : "No analysis run yet."}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Issues Found */}
-          <Card className="col-span-1 md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Code className="w-5 h-5" /> Key Findings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {latestReview?.issues && latestReview.issues.length > 0 ? (
-                <ul className="space-y-2">
-                  {latestReview.issues.map((issue, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                      <span>{issue}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground text-sm">No critical issues flagged.</p>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* CodeRabbit Summary */}
-           {coderabbitReview && (
-             <Card className="col-span-1 md:col-span-2 border-l-4 border-l-orange-500">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        CodeRabbit Summary
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {coderabbitReview.summary}
-                </CardContent>
-             </Card>
-           )}
         </div>
 
         <div className="flex justify-end gap-2 mt-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-          <Button onClick={() => window.print()}>Print Report</Button>
+          <Button onClick={() => window.print()}>
+            <FileDown className="w-4 h-4 mr-2" />
+            Print Report
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
