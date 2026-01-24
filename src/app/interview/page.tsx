@@ -37,6 +37,7 @@ export default function InterviewPage() {
 
   const [mounted, setMounted] = useState(false);
   const [showReport, setShowReport] = useState(false); // New state
+
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
