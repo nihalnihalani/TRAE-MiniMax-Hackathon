@@ -77,6 +77,32 @@ export class DaytonaService {
     }
   }
 
+  async saveFile(workspaceId: string, path: string, content: string): Promise<void> {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_DAYTONA === 'true') {
+        console.log(`Mocking saveFile: ${path}`);
+        return;
+    }
+
+    try {
+        // Simple write using echo for now. 
+        // In production, consider using a proper FS API or base64 encoding to avoid shell escaping issues.
+        // const escapedContent = content.replace(/"/g, '\\"');
+        // await this.daytona.exec(workspaceId, `echo "${escapedContent}" > ${path}`);
+        
+        // Better approach: SDK likely has fs.upload or similar. 
+        // Failing that, we can try to assume the SDK isn't fully typed here and use a specific method if known.
+        // For this task, let's assume 'exec' is the main way interaction happens if detailed FS isn't exposed.
+        
+        // Using base64 to safely write file content via shell
+        const base64Content = Buffer.from(content).toString('base64');
+        await this.daytona.exec(workspaceId, `echo "${base64Content}" | base64 -d > ${path}`, 'shell');
+        
+    } catch (error) {
+        console.error('Failed to save file:', error);
+        throw error;
+    }
+  }
+
   async executeCode(
       workspaceId: string, 
       code: string, 
@@ -95,19 +121,35 @@ export class DaytonaService {
     }
 
     try {
-      const executionPromise = this.daytona.exec(workspaceId, code, language);
+      let command = code;
+      let filename = 'main';
+
+      if (language === 'python') {
+        filename = 'main.py';
+        command = `python ${filename}`;
+      } else if (language === 'javascript' || language === 'typescript') {
+        filename = 'index.js'; // Simplification for Node
+        command = `node ${filename}`;
+      }
+
+      // 1. Save the code to a file
+      await this.saveFile(workspaceId, filename, code);
+
+      // 2. Execute the file
+      const executionPromise = this.daytona.exec(workspaceId, command, 'shell');
       
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs}ms`)), timeoutMs)
       );
 
       // Race between execution and timeout
-      const result = await Promise.race([executionPromise, timeoutPromise]);
+      // Note: SDK types might need casting if result doesn't match exactly what we expect
+      const result = await Promise.race([executionPromise, timeoutPromise]) as any;
 
       return {
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exitCode: result.exitCode,
+        stdout: result.stdout || "",
+        stderr: result.stderr || "",
+        exitCode: result.exitCode ?? 0,
       };
     } catch (error) {
       console.error('Failed to execute code:', error);
