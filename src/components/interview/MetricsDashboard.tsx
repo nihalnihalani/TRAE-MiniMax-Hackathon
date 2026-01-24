@@ -107,7 +107,7 @@ export function MetricsDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-2 text-sm text-muted-foreground text-left">
                     <li className="flex items-start gap-2">
                         <span className="text-red-500 mt-1 flex-shrink-0 w-6 text-center">✗</span>
                         <span className="flex-1">Inconsistent evaluations (67% agreement between interviewers)</span>
@@ -140,7 +140,7 @@ export function MetricsDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
+                <ul className="space-y-2 text-sm text-muted-foreground text-left">
                     <li className="flex items-start gap-2">
                         <span className="text-green-500 mt-1 flex-shrink-0 w-6 text-center">✓</span>
                         <span className="flex-1">Consistent rubric-based evaluation (94% agreement)</span>
