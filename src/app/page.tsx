@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderGit2, Mic, BrainCircuit, Terminal, ArrowRight } from "lucide-react";
+import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
 
 export default function Home() {
   return (
@@ -13,12 +14,12 @@ export default function Home() {
             Daytona Interview Sandbox
           </div>
           <div className="flex gap-4">
-             <Link href="/test">
-               <Button variant="ghost">Smoke Test</Button>
-             </Link>
-             <Link href="/interview">
-               <Button>Start Interview</Button>
-             </Link>
+            <Link href="/test">
+              <Button variant="ghost">Smoke Test</Button>
+            </Link>
+            <Link href="/interview">
+              <Button>Start Interview</Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -32,7 +33,7 @@ export default function Home() {
             </span>
           </span>
         </h1>
-        
+
         <p className="text-xl text-muted-foreground max-w-2xl animate-slide-up-fade" style={{ animationDelay: '400ms' }}>
           Experience a voice-first coding interview with "Alex", an AI agent powered by Gemini 3 Pro and ElevenLabs, running in a secure Daytona sandbox.
         </p>
@@ -72,6 +73,11 @@ export default function Home() {
               <CardDescription>Gemini 3 Pro reviews code for complexity, bugs, and security.</CardDescription>
             </CardHeader>
           </Card>
+        </div>
+
+        {/* Metrics Dashboard Section */}
+        <div className="w-full max-w-6xl mt-20 animate-slide-up-fade" style={{ animationDelay: '800ms' }}>
+          <MetricsDashboard />
         </div>
       </main>
 
