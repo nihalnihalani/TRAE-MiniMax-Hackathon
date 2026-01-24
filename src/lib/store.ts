@@ -8,7 +8,26 @@ interface ReviewResult {
   security_score?: number;
   complexity: string;
   issues: string[];
+  security_issues?: string[];
   reasoning_trace: string;
+}
+
+// Conversation transcript entry
+interface TranscriptMessage {
+  timestamp: number;
+  speaker: 'agent' | 'user';
+  message: string;
+  type?: 'text' | 'audio';
+}
+
+// Test execution result
+interface TestResult {
+  timestamp: number;
+  problemId: string;
+  testsPassed: number;
+  testsTotal: number;
+  executionTime?: number;
+  details: any;
 }
 
 // Workspace status types
@@ -66,6 +85,16 @@ interface InterviewState {
   addBlurEvent: () => void;
   addPasteEvent: (length: number) => void;
   getIntegrityReport: () => string;
+
+  // Conversation Transcript
+  transcript: TranscriptMessage[];
+  addTranscriptMessage: (speaker: 'agent' | 'user', message: string, type?: 'text' | 'audio') => void;
+  clearTranscript: () => void;
+
+  // Test Results
+  testResults: TestResult[];
+  addTestResult: (result: TestResult) => void;
+  clearTestResults: () => void;
 
   // Demo / Wizard Mode
   isWizardMode: boolean;
@@ -143,6 +172,25 @@ export const useInterviewStore = create<InterviewState>()(
         const { blurCount, pasteCount, largePasteEvents } = state.integrity;
         return `Integrity Report: User has left the tab ${blurCount} times. Detected ${pasteCount} paste events, with ${largePasteEvents.length} large pastes (>${LARGE_PASTE_THRESHOLD} chars).`;
       },
+
+      // Conversation Transcript
+      transcript: [],
+      addTranscriptMessage: (speaker, message, type = 'audio') => set((state) => ({
+        transcript: [...state.transcript, {
+          timestamp: Date.now(),
+          speaker,
+          message,
+          type
+        }]
+      })),
+      clearTranscript: () => set({ transcript: [] }),
+
+      // Test Results
+      testResults: [],
+      addTestResult: (result) => set((state) => ({
+        testResults: [...state.testResults, result]
+      })),
+      clearTestResults: () => set({ testResults: [] }),
 
       // Wizard Mode
       isWizardMode: false,
