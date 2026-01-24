@@ -5,6 +5,7 @@ import {
   ResizablePanel, 
   ResizablePanelGroup 
 } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProblemDescription } from "@/components/interview/ProblemDescription";
 import { ConsolePanel } from "@/components/interview/ConsolePanel";
 import { Controls } from "@/components/interview/Controls";
@@ -35,7 +36,8 @@ export default function InterviewPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
-  // const [workspaceId, setWorkspaceId] = useState<string | null>(null); // Use store instead
+  // activeTab is now controlled by the Tabs component, but we can sync it or just let Tabs handle it
+  // We keep it in state to switch programmatically when buttons are clicked
   const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
 
   useEffect(() => {
@@ -199,12 +201,19 @@ export default function InterviewPage() {
                         isCodeRabbitLoading={isCodeRabbitLoading}
                     />
 
-                    <div className="flex-1 overflow-y-auto p-4">
-                        {activeTab === 'gemini' ? (
-                            <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
-                        ) : (
-                            <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
-                        )}
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+                        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
+                            <TabsList className="grid w-full grid-cols-2 mb-4">
+                                <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
+                                <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="gemini" className="flex-1 mt-0">
+                                <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
+                            </TabsContent>
+                            <TabsContent value="coderabbit" className="flex-1 mt-0">
+                                <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
+                            </TabsContent>
+                        </Tabs>
                     </div>
                 </div>
             </ResizablePanel>
