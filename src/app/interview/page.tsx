@@ -39,6 +39,8 @@ export default function InterviewPage() {
   // activeTab is now controlled by the Tabs component, but we can sync it or just let Tabs handle it
   // We keep it in state to switch programmatically when buttons are clicked
   const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
+  const [isFixing, setIsFixing] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
@@ -85,14 +87,51 @@ export default function InterviewPage() {
       });
       const data = await res.json();
       
-      if (data.stdout) addLog(data.stdout);
-      if (data.stderr) addLog(`Error:\n${data.stderr}`);
-      if (!data.stdout && !data.stderr) addLog("No output returned.");
+      if (data.stdout) {
+        addLog(data.stdout, 'stdout');
+        setLastError(null);
+      }
+      if (data.stderr) {
+        addLog(`Error:\n${data.stderr}`, 'stderr');
+        setLastError(data.stderr);
+        
+        // Auto-suggest fix in logs
+        addLog("💡 Tip: Click 'Auto Fix' to let the agent repair this.", 'system');
+      }
+      if (!data.stdout && !data.stderr) addLog("No output returned.", 'system');
 
     } catch (err) {
-        addLog(`System Error: ${err}`);
+        addLog(`System Error: ${err}`, 'stderr');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleAutoFix = async () => {
+    if (!lastError || !code) return;
+    
+    setIsFixing(true);
+    addLog("Agent is analyzing error pattern...", 'agent');
+    
+    try {
+        const res = await fetch('/api/analysis/autofix', {
+            method: 'POST',
+            body: JSON.stringify({ code, error: lastError, language: 'python' })
+        });
+        const data = await res.json();
+        
+        if (data.fixedCode) {
+            setCode(data.fixedCode);
+            addLog("✨ Agent applied fix to code.", 'agent');
+            setLastError(null); // Clear error state
+        } else {
+            addLog("Agent could not determine a fix.", 'system');
+        }
+    } catch (err) {
+        console.error(err);
+        addLog("Auto-fix service failed.", 'stderr');
+    } finally {
+        setIsFixing(false);
     }
   };
 
@@ -196,9 +235,12 @@ export default function InterviewPage() {
                         onRun={() => handleRun(code)} 
                         onAnalyze={handleAnalyze}
                         onCodeRabbit={handleCodeRabbit}
+                        onAutoFix={handleAutoFix}
                         isRunning={isRunning}
                         isAnalyzing={isAnalyzing}
                         isCodeRabbitLoading={isCodeRabbitLoading}
+                        isFixing={isFixing}
+                        hasError={!!lastError}
                     />
 
                     <div className="flex-1 overflow-y-auto p-4 flex flex-col">

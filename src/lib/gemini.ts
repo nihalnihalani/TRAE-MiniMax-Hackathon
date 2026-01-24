@@ -3,11 +3,48 @@ import * as Sentry from "@sentry/nextjs";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// Using 'gemini-1.5-pro' as a stable "Pro" model. 
-// In 2026 context, this might be 'gemini-3-pro', but using 1.5-pro ensures it works now.
+// Using 'gemini-2.0-flash' for speed, or 'gemini-1.5-pro' for reasoning
 const MODEL_NAME = "gemini-1.5-pro"; 
 
 export const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+
+export async function generateAutoFix(code: string, error: string, language: string) {
+    return Sentry.startSpan({ name: "ai.autofix", op: "ai.pipeline" }, async (span) => {
+        try {
+            const prompt = `
+Role: Senior Software Engineer & Debugger.
+Task: Fix the following code based on the error message.
+Language: ${language}
+
+Error:
+${error}
+
+Original Code:
+${code}
+
+Instructions:
+1. Analyze the error and the code.
+2. Provide ONLY the full fixed code block.
+3. Do not include markdown formatting like \`\`\`python or \`\`\`.
+4. If imports are missing, add them.
+5. If syntax is wrong, fix it.
+            `;
+            
+            span.setAttribute("ai.model_id", MODEL_NAME);
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+            
+            // Clean up potentially wrapped code
+            let cleanCode = text.replace(/```[a-z]*\n/g, '').replace(/```/g, '').trim();
+            return cleanCode;
+        } catch (error) {
+            Sentry.captureException(error);
+            console.error("AutoFix failed", error);
+            return null;
+        }
+    });
+}
+
 
 export async function analyzeCodeWithGemini(code: string, language: string) {
   return Sentry.startSpan({ name: "ai.analysis", op: "ai.pipeline" }, async (span) => {
