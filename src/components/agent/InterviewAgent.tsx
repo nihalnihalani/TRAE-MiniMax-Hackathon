@@ -129,7 +129,7 @@ export function InterviewAgent() {
     }
   });
 
-  const { status, isSpeaking, startConversation, endConversation } = conversation;
+  const { status, isSpeaking, startSession, endSession } = conversation;
 
   // Keyboard shortcut for Wizard Mode Next Line
   useEffect(() => {
@@ -167,15 +167,17 @@ export function InterviewAgent() {
     try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         
-        await startConversation({
+        // @ts-ignore
+        await startSession({
             agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "replace-with-agent-id",
             overrides: {
                agent: {
                   language: "en",
-                  prompt: {
-                     firstMessage: isWizardMode 
+                  firstMessage: isWizardMode 
                        ? WIZARD_SCRIPT[0] // Force first script line
-                       : "Hello! I'm Alex. Ready to code?"
+                       : "Hello! I'm Alex. Ready to code?",
+                  prompt: {
+                     prompt: "You are a helpful interviewer."
                   }
                }
             }
@@ -187,7 +189,7 @@ export function InterviewAgent() {
   };
 
   const handleStop = async () => {
-      await endConversation();
+      await endSession();
   };
 
   return (
