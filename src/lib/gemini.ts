@@ -135,24 +135,6 @@ function isNonRetryableError(error: unknown): boolean {
   return false;
 }
 
-function isRetryableError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    return (
-      message.includes('rate limit') ||
-      message.includes('quota') ||
-      message.includes('timeout') ||
-      message.includes('network') ||
-      message.includes('econnreset') ||
-      message.includes('econnrefused') ||
-      message.includes('temporarily') ||
-      message.includes('overloaded') ||
-      message.includes('503') ||
-      message.includes('429')
-    );
-  }
-  return true; // Default to retryable for unknown errors
-}
 
 async function withGeminiRetry<T>(
   operation: () => Promise<T>,
@@ -203,7 +185,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
   }
 
   // Strategy 1: Clean markdown code blocks and parse
-  let cleanText = text
+  const cleanText = text
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
     .trim();
@@ -211,7 +193,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
   try {
     const parsed = JSON.parse(cleanText);
     return { success: true, data: parsed };
-  } catch (e) {
+  } catch {
     // Continue to next strategy
   }
 
@@ -221,7 +203,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
     try {
       const parsed = JSON.parse(jsonObjectMatch[0]);
       return { success: true, data: parsed };
-    } catch (e) {
+    } catch {
       // Strategy 3: Try to fix common JSON issues
       const fixed = jsonObjectMatch[0]
         .replace(/,\s*}/g, '}')      // Remove trailing commas in objects
@@ -233,7 +215,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
       try {
         const parsed = JSON.parse(fixed);
         return { success: true, data: parsed };
-      } catch (e2) {
+      } catch {
         // Continue to next strategy
       }
     }
@@ -245,7 +227,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
     try {
       const parsed = JSON.parse(jsonArrayMatch[0]);
       return { success: true, data: parsed };
-    } catch (e) {
+    } catch {
       // All strategies failed
     }
   }
@@ -403,7 +385,7 @@ ${sanitizedCode}
         span.setAttribute("ai.model_id", MODEL_NAME);
 
         const result = await model.generateContent(prompt);
-        const response = await result.response;
+        const response = result.response;
         const text = response.text();
 
         const parseResult = parseGeminiJSON<CodeAnalysisResult>(text, DEFAULT_ANALYSIS_RESULT);
@@ -456,7 +438,7 @@ export interface InterviewReportData {
     problemId: string;
     testsPassed: number;
     testsTotal: number;
-    details: any;
+    details: Record<string, unknown>;
   }[];
   integrity: {
     blurCount: number;
@@ -472,7 +454,7 @@ export interface InterviewReportData {
   };
   coderabbitReview?: {
     summary: string;
-    issues: any[];
+    issues: Array<{ message: string; severity?: string; line?: number }>;
   };
   problemId?: string;
 }

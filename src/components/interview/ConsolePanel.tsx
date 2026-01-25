@@ -54,7 +54,7 @@ export function ConsolePanel({ output }: ConsolePanelProps) {
         ) : (
           <div role="log" aria-live="polite" aria-label="Console output log" className="mt-auto">
             {output.map((log, i) => (
-              <div key={i} className={cn("flex items-start gap-2 break-words leading-relaxed animate-in fade-in slide-in-from-bottom-1 duration-200", LogColor(log.type))}>
+              <div key={i} className={cn("flex items-start gap-2 wrap-break-word leading-relaxed animate-in fade-in slide-in-from-bottom-1 duration-200", LogColor(log.type))}>
                   <span className="mt-1 opacity-70 shrink-0 select-none" aria-hidden="true">
                       <LogIcon type={log.type} />
                   </span>

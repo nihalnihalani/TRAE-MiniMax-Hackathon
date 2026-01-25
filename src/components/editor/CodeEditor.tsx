@@ -93,7 +93,7 @@ export function CodeEditor({
           {isRunning ? "Running..." : "Run"}
         </Button>
       </div>
-      <div className="flex-1 min-h-[400px]">
+      <div className="flex-1">
         <Editor
           height="100%"
           defaultLanguage={language}
