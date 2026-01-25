@@ -1,39 +1,33 @@
 import { codeRabbitService } from '@/lib/coderabbit';
-import { isValidCode, isValidLanguage, isValidWorkspaceId, VALID_LANGUAGES, MAX_CODE_SIZE } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { CodeRabbitRequestSchema, WorkspaceIdSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { code, language, workspaceId } = body;
 
+    // If only workspaceId is provided, analyze sandbox
+    if (body.workspaceId && !body.code) {
+      const wsValidation = validateRequest(WorkspaceIdSchema, body.workspaceId);
+      if (!wsValidation.success) {
+        return errorResponse(wsValidation.error || 'Invalid workspace ID', 400, 'VALIDATION_ERROR');
+      }
+      const review = await codeRabbitService.analyzeSandbox(body.workspaceId);
+      return successResponse(review);
+    }
+
+    // Validate full request with code
+    const validation = validateRequest(CodeRabbitRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
+    }
+
+    const { code, language, workspaceId } = validation.data!;
+
+    // If workspaceId is provided with code, analyze sandbox
     if (workspaceId) {
-        if (!isValidWorkspaceId(workspaceId)) {
-          return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
-        }
-        // Run analysis inside the sandbox
-        const review = await codeRabbitService.analyzeSandbox(workspaceId);
-        return successResponse(review);
-    }
-
-    if (!code) {
-      return errorResponse('Code is required if workspaceId is not provided', 400, 'MISSING_CODE');
-    }
-
-    if (!isValidCode(code)) {
-      return errorResponse(
-        `Invalid code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
-        400,
-        'INVALID_CODE'
-      );
-    }
-
-    if (language && !isValidLanguage(language)) {
-      return errorResponse(
-        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
-        400,
-        'INVALID_LANGUAGE'
-      );
+      const review = await codeRabbitService.analyzeSandbox(workspaceId);
+      return successResponse(review);
     }
 
     const review = await codeRabbitService.analyzeCode(code, language || 'python');

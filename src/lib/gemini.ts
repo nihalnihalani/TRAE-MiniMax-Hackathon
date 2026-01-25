@@ -4,8 +4,106 @@ import { GEMINI_RETRY_CONFIG } from "./constants";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// Using Gemini 3 Flash Preview for fast, capable reasoning (1M context window)
-const MODEL_NAME = "gemini-3-flash-preview";
+// Using Gemini 2.0 Flash for fast, capable reasoning
+const MODEL_NAME = "gemini-2.0-flash";
+
+// ============================================================================
+// Input Sanitization for Prompt Injection Prevention
+// ============================================================================
+
+/**
+ * Sanitizes user input to prevent prompt injection attacks.
+ * This escapes special characters and patterns that could be used to
+ * manipulate AI behavior.
+ */
+function sanitizeForPrompt(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+
+  // Limit input length to prevent token exhaustion
+  const MAX_INPUT_LENGTH = 50000;
+  let sanitized = input.slice(0, MAX_INPUT_LENGTH);
+
+  // Escape patterns that could be used for prompt injection
+  const injectionPatterns = [
+    // System prompt overrides
+    { pattern: /\bignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, replacement: '[FILTERED]' },
+    { pattern: /\b(system|admin|root)\s*:\s*/gi, replacement: '[FILTERED]: ' },
+    { pattern: /\byou\s+are\s+now\s+/gi, replacement: '[FILTERED] ' },
+    { pattern: /\bforget\s+(everything|all|your)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bdisregard\s+(all|previous|your)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bpretend\s+(you|to\s+be)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bact\s+as\s+(if|a)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bnew\s+instructions?\s*:/gi, replacement: '[FILTERED]:' },
+    { pattern: /\boverride\s+(system|instructions?|rules?)\b/gi, replacement: '[FILTERED]' },
+    // Role manipulation
+    { pattern: /\[\s*SYSTEM\s*\]/gi, replacement: '[FILTERED]' },
+    { pattern: /\[\s*INST\s*\]/gi, replacement: '[FILTERED]' },
+    { pattern: /<<\s*SYS\s*>>/gi, replacement: '[FILTERED]' },
+    { pattern: /<\|im_start\|>/gi, replacement: '[FILTERED]' },
+    { pattern: /<\|im_end\|>/gi, replacement: '[FILTERED]' },
+  ];
+
+  for (const { pattern, replacement } of injectionPatterns) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  // Escape markdown-like patterns that could break prompt structure
+  // But preserve code formatting
+  sanitized = sanitized
+    .replace(/^#{1,6}\s+/gm, '\\# ') // Escape headers at start of lines only
+    .replace(/^>\s+/gm, '\\> ')      // Escape blockquotes at start of lines
+    .replace(/^---+$/gm, '\\---')    // Escape horizontal rules
+    .replace(/^\*{3,}$/gm, '\\***'); // Escape emphasis patterns
+
+  return sanitized;
+}
+
+/**
+ * Sanitizes code input, preserving code structure while preventing injection.
+ */
+function sanitizeCode(code: string): string {
+  if (!code || typeof code !== 'string') {
+    return '';
+  }
+
+  // Limit code length
+  const MAX_CODE_LENGTH = 100000;
+  let sanitized = code.slice(0, MAX_CODE_LENGTH);
+
+  // Only filter the most dangerous prompt injection patterns in code
+  // Be more lenient since code can contain many special patterns legitimately
+  const codeInjectionPatterns = [
+    { pattern: /\bignore\s+all\s+previous\s+instructions\b/gi, replacement: '/* FILTERED */' },
+    { pattern: /\[\s*SYSTEM\s*\]/gi, replacement: '/* FILTERED */' },
+    { pattern: /<<\s*SYS\s*>>/gi, replacement: '/* FILTERED */' },
+  ];
+
+  for (const { pattern, replacement } of codeInjectionPatterns) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  return sanitized;
+}
+
+/**
+ * Sanitizes error messages which might contain user-controlled content.
+ */
+function sanitizeError(error: string): string {
+  if (!error || typeof error !== 'string') {
+    return '';
+  }
+
+  // Limit error length
+  const MAX_ERROR_LENGTH = 5000;
+  let sanitized = error.slice(0, MAX_ERROR_LENGTH);
+
+  // Apply general sanitization
+  sanitized = sanitizeForPrompt(sanitized);
+
+  return sanitized;
+}
 
 export const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
@@ -172,17 +270,22 @@ export async function generateAutoFix(
 ): Promise<AutoFixResult | null> {
   return Sentry.startSpan({ name: "ai.autofix", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize inputs to prevent prompt injection
+      const sanitizedCode = sanitizeCode(code);
+      const sanitizedError = sanitizeError(error);
+      const sanitizedLanguage = sanitizeForPrompt(language);
+
       return await withGeminiRetry(async () => {
         const prompt = `
 Role: Senior Software Engineer & Debugger.
 Task: Fix the following code based on the error message.
-Language: ${language}
+Language: ${sanitizedLanguage}
 
 Error:
-${error}
+${sanitizedError}
 
 Original Code:
-${code}
+${sanitizedCode}
 
 Instructions:
 1. Analyze the error and the code.
@@ -260,10 +363,14 @@ export async function analyzeCodeWithGemini(
 ): Promise<CodeAnalysisResult> {
   return Sentry.startSpan({ name: "ai.analysis", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize inputs to prevent prompt injection
+      const sanitizedCode = sanitizeCode(code);
+      const sanitizedLanguage = sanitizeForPrompt(language);
+
       return await withGeminiRetry(async () => {
         const prompt = `
 Role: Senior Code Reviewer & Security Researcher.
-Input: ${language} Code.
+Input: ${sanitizedLanguage} Code.
 Task: Perform a comprehensive analysis including:
 
 1. Code Quality:
@@ -290,7 +397,7 @@ Output JSON only:
 }
 
 Code:
-${code}
+${sanitizedCode}
         `;
 
         span.setAttribute("ai.model_id", MODEL_NAME);
@@ -375,13 +482,19 @@ export async function generateInterviewReport(
 ): Promise<string> {
   return Sentry.startSpan({ name: "ai.interview_report", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize user-controllable inputs
+      const sanitizedCode = sanitizeCode(data.code);
+      const sanitizedLanguage = sanitizeForPrompt(data.language);
+      const sanitizedProblemId = sanitizeForPrompt(data.problemId || 'Coding Challenge');
+
       return await withGeminiRetry(async () => {
-        // Format transcript for better readability
+        // Format transcript for better readability (sanitize messages)
         const formattedTranscript = data.transcript.length > 0
           ? data.transcript.map(msg => {
             const time = new Date(msg.timestamp).toLocaleTimeString();
             const speaker = msg.speaker === 'agent' ? '🤖 Agent' : '👤 Candidate';
-            return `[${time}] ${speaker}: ${msg.message}`;
+            const sanitizedMessage = sanitizeForPrompt(msg.message);
+            return `[${time}] ${speaker}: ${sanitizedMessage}`;
           }).join('\n')
           : 'No conversation recorded.';
 
@@ -403,15 +516,15 @@ export async function generateInterviewReport(
 You are an expert technical interviewer conducting a comprehensive evaluation of a coding interview session.
 
 **INTERVIEW CONTEXT:**
-Problem: ${data.problemId || 'Coding Challenge'}
-Language: ${data.language}
+Problem: ${sanitizedProblemId}
+Language: ${sanitizedLanguage}
 
 **CONVERSATION TRANSCRIPT:**
 ${formattedTranscript}
 
 **FINAL CODE SUBMISSION:**
-\`\`\`${data.language}
-${data.code}
+\`\`\`${sanitizedLanguage}
+${sanitizedCode}
 \`\`\`
 
 **TEST RESULTS:**

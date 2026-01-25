@@ -137,7 +137,11 @@ export function InterviewAgent() {
     };
 
     const handleStop = async () => {
-        await endSession();
+        try {
+            await endSession();
+        } catch (err) {
+            console.error("Failed to end session:", err);
+        }
     };
 
     return (

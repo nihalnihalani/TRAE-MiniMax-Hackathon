@@ -1,11 +1,18 @@
 import { daytonaService, CreateWorkspaceOptions } from '@/lib/daytona';
-import { isValidLanguage, VALID_LANGUAGES } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { DEFAULT_AUTO_STOP_INTERVAL } from '@/lib/constants';
+import { CreateWorkspaceRequestSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // Validate request using Zod schema
+    const validation = validateRequest(CreateWorkspaceRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
+    }
+
     const {
       language,
       networkAllowList,
@@ -15,19 +22,7 @@ export async function POST(request: Request) {
       envVars,
       installCodeRabbit,
       timeout,
-    } = body;
-
-    if (!language) {
-      return errorResponse('Language is required', 400, 'MISSING_LANGUAGE');
-    }
-
-    if (!isValidLanguage(language)) {
-      return errorResponse(
-        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
-        400,
-        'INVALID_LANGUAGE'
-      );
-    }
+    } = validation.data!;
 
     const options: CreateWorkspaceOptions = {
       language,
