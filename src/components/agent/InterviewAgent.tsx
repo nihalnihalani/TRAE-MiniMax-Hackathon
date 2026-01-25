@@ -150,7 +150,7 @@ export function InterviewAgent() {
             <div className="flex items-center gap-4 p-4 border rounded-xl bg-card">
                 <StatusIndicator status={status} />
 
-                <div className="flex-1 flex justify-center">
+                <div className="flex-1 w-full min-w-0">
                     <Visualizer isSpeaking={isSpeaking} />
                 </div>
 
