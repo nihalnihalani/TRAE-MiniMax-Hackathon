@@ -93,6 +93,17 @@ export class GeminiLiveClient {
     this.onStatusChange('connecting');
 
     try {
+      // Pre-check microphone permission before connecting
+      try {
+        const permissionStatus = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
+        if (permissionStatus?.state === 'denied') {
+          throw new Error("Microphone permission denied. Please enable it in browser settings.");
+        }
+      } catch (permErr) {
+        // permissions.query may not be supported, continue anyway
+        console.log("Permission check not supported, continuing...");
+      }
+
       const url = `wss://${HOST}/ws/google.ai.generativelanguage.${VERSION}.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
       this.ws = new WebSocket(url);
 
@@ -359,16 +370,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
   private async startAudioInput() {
     try {
-      // Input context at 16kHz (native audio model preference)
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: SAMPLE_RATE,
-      });
-
-      // Output context at 24kHz
-      this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: OUTPUT_SAMPLE_RATE,
-      });
-
+      // Get microphone access FIRST before creating AudioContext
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -378,6 +380,34 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
           autoGainControl: true,
         },
       });
+
+      // Create AudioContext after getting microphone permission
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error("AudioContext not supported in this browser");
+      }
+
+      // Input context at 16kHz (native audio model preference)
+      this.audioContext = new AudioContextClass({
+        sampleRate: SAMPLE_RATE,
+      });
+
+      // Output context at 24kHz
+      this.outputAudioContext = new AudioContextClass({
+        sampleRate: OUTPUT_SAMPLE_RATE,
+      });
+
+      // Resume audio contexts if suspended (browser autoplay policy)
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      if (this.outputAudioContext.state === 'suspended') {
+        await this.outputAudioContext.resume();
+      }
+
+      if (!this.audioContext) {
+        throw new Error("Failed to create input AudioContext");
+      }
 
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
@@ -428,9 +458,23 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
       console.log("🎤 Microphone active at", SAMPLE_RATE, "Hz");
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Audio Input Error:", err);
-      this.onError(new Error("Microphone access failed"));
+
+      // Provide specific error messages
+      let errorMessage = "Microphone access failed";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMessage = "Microphone permission denied. Please allow microphone access and try again.";
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMessage = "No microphone found. Please connect a microphone and try again.";
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errorMessage = "Microphone is in use by another application.";
+      } else if (err.message) {
+        errorMessage = `Microphone error: ${err.message}`;
+      }
+
+      this.onError(new Error(errorMessage));
+      this.onStatusChange('error');
     }
   }
 
