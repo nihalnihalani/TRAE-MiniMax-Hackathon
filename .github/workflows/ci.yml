@@ -144,11 +144,18 @@ jobs:
           echo "- ✅ Audio input/output handling (24kHz PCM)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Tool calling support via WebSocket" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### Core Features" >> $GITHUB_STEP_SUMMARY
+          echo "#### Phase 1 - Critical (Demo-Ready)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Gemini retry logic with exponential backoff" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Rate limiting middleware (token bucket algorithm)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Workspace progress indicator component" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ User-friendly error messages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Phase 2 - High Priority (Launch-Ready)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Race condition protection (async-mutex)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Zod schema validation with type inference" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dynamic integrity monitoring (replaces hardcoded values)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code history with undo/redo for auto-fix" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Comprehensive integration tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### External Integrations" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Daytona SDK for secure sandboxes" >> $GITHUB_STEP_SUMMARY
