@@ -51,6 +51,7 @@ export class GeminiLiveClient {
   private isPlaying = false;
   private nextPlayTime = 0;
   private currentSource: AudioBufferSourceNode | null = null;
+  private scheduledSources: AudioBufferSourceNode[] = []; // Track ALL scheduled sources
 
   // Callbacks
   public onStatusChange: (status: ConnectionStatus) => void = () => {};
@@ -191,22 +192,39 @@ export class GeminiLiveClient {
   }
 
   /**
-   * Clear audio queue and stop current playback (called on interruption)
+   * Clear audio queue and stop ALL playback immediately (called on interruption)
    */
   clearAudioQueue() {
+    // Clear pending queue
     this.audioQueue = [];
+
+    // Stop ALL scheduled audio sources immediately
+    for (const source of this.scheduledSources) {
+      try {
+        source.stop(0); // Stop immediately
+        source.disconnect();
+      } catch (e) {
+        // Already stopped
+      }
+    }
+    this.scheduledSources = [];
+
+    // Also stop current source if any
     if (this.currentSource) {
       try {
-        this.currentSource.stop();
+        this.currentSource.stop(0);
+        this.currentSource.disconnect();
       } catch (e) {
         // Already stopped
       }
       this.currentSource = null;
     }
+
     this.isPlaying = false;
     this.nextPlayTime = 0;
     this.onModelSpeaking(false);
-    console.log("🔇 Audio queue cleared (interrupted)");
+    this.onVolume(0);
+    console.log("🔇 Audio stopped immediately (user interrupted)");
   }
 
   private sendSetupMessage() {
@@ -556,23 +574,30 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       // Get current time and ensure we schedule in the future
       const currentTime = ctx.currentTime;
       if (this.nextPlayTime < currentTime) {
-        // Add small buffer (50ms) to prevent underruns
-        this.nextPlayTime = currentTime + 0.05;
+        // Add small buffer (20ms) to prevent underruns
+        this.nextPlayTime = currentTime + 0.02;
       }
 
       source.start(this.nextPlayTime);
       this.nextPlayTime += buffer.duration;
 
-      // Track the last source for interruption handling
+      // Track ALL scheduled sources for proper interruption handling
+      this.scheduledSources.push(source);
       this.currentSource = source;
 
       // Mark as playing
       this.isPlaying = true;
 
-      // Set up end handler for the last chunk
+      // Clean up finished sources from tracking array
       source.onended = () => {
-        // Check if there's more audio or if we're done
-        if (this.audioQueue.length === 0 && ctx.currentTime >= this.nextPlayTime - 0.1) {
+        // Remove this source from tracking
+        const idx = this.scheduledSources.indexOf(source);
+        if (idx > -1) {
+          this.scheduledSources.splice(idx, 1);
+        }
+
+        // Check if all audio is done
+        if (this.scheduledSources.length === 0 && this.audioQueue.length === 0) {
           this.isPlaying = false;
           this.onModelSpeaking(false);
           this.onVolume(0);
