@@ -90,12 +90,20 @@ export class GeminiLiveClient {
   }
 
   async connect() {
+    console.log("🚀 Starting Gemini Live connection...");
     this.onStatusChange('connecting');
 
     try {
+      // Validate API key
+      if (!this.apiKey || this.apiKey.length < 10) {
+        throw new Error("Invalid or missing Gemini API key");
+      }
+      console.log("✅ API key validated");
+
       // Pre-check microphone permission before connecting
       try {
         const permissionStatus = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
+        console.log("🎤 Microphone permission status:", permissionStatus?.state);
         if (permissionStatus?.state === 'denied') {
           throw new Error("Microphone permission denied. Please enable it in browser settings.");
         }
@@ -105,16 +113,19 @@ export class GeminiLiveClient {
       }
 
       const url = `wss://${HOST}/ws/google.ai.generativelanguage.${VERSION}.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
+      console.log("🔌 Connecting to WebSocket...");
       this.ws = new WebSocket(url);
 
       this.ws.onopen = async () => {
-        console.log("🎙️ Gemini Live WebSocket Connected");
+        console.log("🎙️ Gemini Live WebSocket Connected!");
         this.onStatusChange('connected');
 
         // Send initial setup message with VAD config
+        console.log("📤 Sending setup message...");
         this.sendSetupMessage();
 
         // Start Audio Input
+        console.log("🎤 Starting audio input...");
         await this.startAudioInput();
       };
 
@@ -123,19 +134,19 @@ export class GeminiLiveClient {
       };
 
       this.ws.onerror = (event) => {
-        console.error("WebSocket Error:", event);
+        console.error("❌ WebSocket Error:", event);
         this.onStatusChange('error');
-        this.onError(new Error("WebSocket connection error"));
+        this.onError(new Error("WebSocket connection error - check if API key is valid"));
       };
 
       this.ws.onclose = (event) => {
-        console.log("Gemini Live WebSocket Closed", event.code, event.reason);
+        console.log("🔌 Gemini Live WebSocket Closed:", event.code, event.reason);
         this.onStatusChange('disconnected');
         this.stopAudio();
       };
 
     } catch (error) {
-      console.error("Connection failed:", error);
+      console.error("❌ Connection failed:", error);
       this.onStatusChange('error');
       this.onError(error instanceof Error ? error : new Error("Failed to connect"));
     }

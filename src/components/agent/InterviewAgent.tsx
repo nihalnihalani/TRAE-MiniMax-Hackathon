@@ -68,14 +68,17 @@ export function InterviewAgent() {
 
     // Initialize Client
     useEffect(() => {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+        console.log("🔑 Gemini API Key available:", !!apiKey, apiKey ? `(${apiKey.substring(0, 10)}...)` : '');
+
         if (!apiKey) {
-            console.error("Gemini API Key missing");
+            console.error("❌ Gemini API Key missing! Set NEXT_PUBLIC_GEMINI_API_KEY in .env.local");
             return;
         }
 
         // Create client with current interview mode (real or practice)
         const mode: InterviewMode = interviewMode === 'practice' ? 'practice' : 'real';
+        console.log(`🎙️ Creating Gemini Live client in ${mode} mode`);
         const client = new GeminiLiveClient(apiKey, mode);
 
         client.onStatusChange = (s) => setStatus(s);
@@ -164,7 +167,14 @@ export function InterviewAgent() {
     };
 
     const handleStart = async () => {
-        if (clientRef.current) {
+        console.log("🚀 handleStart called, clientRef.current:", !!clientRef.current);
+
+        if (!clientRef.current) {
+            console.error("❌ Gemini client not initialized!");
+            return;
+        }
+
+        try {
             // Set problem context BEFORE connecting so Gemini knows the problem
             const problemContext = getCurrentProblemContext();
             if (problemContext) {
@@ -174,7 +184,11 @@ export function InterviewAgent() {
                 console.warn("⚠️ No problem selected - Gemini won't know what to interview about");
             }
 
+            console.log("🔌 Calling connect()...");
             await clientRef.current.connect();
+            console.log("✅ Connect called successfully");
+        } catch (err) {
+            console.error("❌ Error in handleStart:", err);
         }
     };
 
