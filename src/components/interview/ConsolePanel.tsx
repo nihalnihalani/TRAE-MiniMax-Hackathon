@@ -45,14 +45,14 @@ export function ConsolePanel({ output }: ConsolePanelProps) {
             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> ONLINE</div>
         </div>
       </div>
-      <pre className="flex-1 flex flex-col p-4 overflow-auto space-y-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent font-mono">
+      <pre className="flex-1 p-4 overflow-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent font-mono">
         {output.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-700 opacity-50">
             <Cpu className="w-12 h-12 mb-2" />
             <span className="text-xs">Awaiting Input...</span>
           </div>
         ) : (
-          <div role="log" aria-live="polite" aria-label="Console output log" className="mt-auto">
+          <div role="log" aria-live="polite" aria-label="Console output log" className="flex flex-col gap-1">
             {output.map((log, i) => (
               <div key={i} className={cn("flex items-start gap-2 wrap-break-word leading-relaxed animate-in fade-in slide-in-from-bottom-1 duration-200", LogColor(log.type))}>
                   <span className="mt-1 opacity-70 shrink-0 select-none" aria-hidden="true">
