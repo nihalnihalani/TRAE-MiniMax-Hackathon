@@ -17,9 +17,8 @@ const OUTPUT_SAMPLE_RATE = 24000; // Output is 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
-// Use the latest native audio model for better conversation flow
-const MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog";
-// Alternative model if needed: "models/gemini-2.5-flash-native-audio-preview-12-2025"
+// Use the Gemini 2.0 Flash model for live audio (stable)
+const MODEL = "models/gemini-2.0-flash-live-001";
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
@@ -290,9 +289,12 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       message = JSON.parse(data);
     }
 
+    // Debug: Log all incoming messages
+    console.log("📥 Received message:", Object.keys(message));
+
     // Handle setup complete
     if (message.setupComplete) {
-      console.log("✅ Gemini Live setup complete");
+      console.log("✅ Gemini Live setup complete - ready to talk!");
     }
 
     // Handle Server Content (Audio/Text)
