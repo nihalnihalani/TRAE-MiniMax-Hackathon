@@ -1,51 +1,49 @@
-import { SchemaType } from "@google/generative-ai";
-
 /**
  * Interview Tools for Gemini Live WebSocket API
- * These tools are used by the AI interviewer to interact with the sandbox
+ * Uses plain JSON format compatible with Live API (not SDK types)
  */
 export const INTERVIEW_TOOLS = [
   {
     functionDeclarations: [
       {
         name: "read_candidate_code",
-        description: "Read the current code written by the candidate in the editor.",
+        description: "Read the current code written by the candidate in the code editor. Use this to see what they've typed.",
+      },
+      {
+        name: "run_code",
+        description: "Execute the candidate's current code and run tests. Use this when the candidate says 'run it', 'test it', 'execute', or 'I'm done'.",
+      },
+      {
+        name: "get_current_problem",
+        description: "Get the current coding problem details including description, examples, and constraints.",
       },
       {
         name: "read_sandbox_file",
-        description: "Read the content of a specific file in the sandbox workspace.",
+        description: "Read a specific file from the sandbox workspace.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: "object",
           properties: {
             path: {
-              type: SchemaType.STRING,
-              description: "The file path to read (e.g., 'main.py')",
+              type: "string",
+              description: "The file path to read",
             },
           },
           required: ["path"],
         },
       },
       {
-        name: "run_coderabbit_analysis",
-        description: "Run a CodeRabbit analysis on the current code or workspace to get a code review.",
-      },
-      {
-        name: "run_code",
-        description: "Execute the candidate's current code in the sandbox environment and get the output.",
-      },
-      {
         name: "install_dependency",
-        description: "Install a package/dependency in the sandbox environment.",
+        description: "Install a package in the sandbox environment.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: "object",
           properties: {
             packageName: {
-              type: SchemaType.STRING,
-              description: "The name of the package to install",
+              type: "string",
+              description: "Package name to install",
             },
             manager: {
-              type: SchemaType.STRING,
-              description: "The package manager to use ('pip' or 'npm')",
+              type: "string",
+              description: "Package manager: 'pip' or 'npm'",
             },
           },
           required: ["packageName", "manager"],
@@ -53,12 +51,12 @@ export const INTERVIEW_TOOLS = [
       },
       {
         name: "run_hidden_test",
-        description: "Run a specific hidden test case against the candidate's code.",
+        description: "Run a specific test case against the candidate's code.",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: "object",
           properties: {
             testCode: {
-              type: SchemaType.STRING,
+              type: "string",
               description: "The test code to execute",
             },
           },
@@ -66,35 +64,31 @@ export const INTERVIEW_TOOLS = [
         },
       },
       {
-        name: "get_current_problem",
-        description: "Get details about the current coding problem (description, examples, constraints).",
-      },
-      {
         name: "get_interview_mode",
-        description: "Get the current interview mode (real vs practice) and role instructions.",
+        description: "Get current interview mode (real or practice) and role instructions.",
       },
       {
         name: "provide_hint",
-        description: "Provide a hint to the candidate (only available in practice mode).",
+        description: "Provide a hint to help the candidate (practice mode only).",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: "object",
           properties: {
             level: {
-              type: SchemaType.NUMBER,
-              description: "The hint level index (0-based) to retrieve",
+              type: "number",
+              description: "Hint level (0 = first hint, 1 = more specific, etc.)",
             },
           },
         },
       },
       {
         name: "explain_concept",
-        description: "Get an explanation for a coding concept (for practice mode).",
+        description: "Explain a coding concept to the candidate (practice mode only).",
         parameters: {
-          type: SchemaType.OBJECT,
+          type: "object",
           properties: {
             topic: {
-              type: SchemaType.STRING,
-              description: "The concept or topic to explain",
+              type: "string",
+              description: "The concept to explain",
             },
           },
           required: ["topic"],
@@ -102,7 +96,7 @@ export const INTERVIEW_TOOLS = [
       },
       {
         name: "get_integrity_status",
-        description: "Check the candidate's integrity status (paste events, blur events).",
+        description: "Check if candidate has copy-pasted code or switched tabs.",
       },
     ],
   },
