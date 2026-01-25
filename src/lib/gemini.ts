@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as Sentry from "@sentry/nextjs";
 import { GEMINI_RETRY_CONFIG } from "./constants";
+import { CoachingFeedback, DEFAULT_COACHING_FEEDBACK, calculateSkillLevel } from "./coaching";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -596,6 +597,187 @@ ${JSON.stringify(REPORT_JSON_SCHEMA, null, 2)}
       console.error("Error generating interview report:", error);
       Sentry.captureException(error);
       throw error;
+    }
+  });
+}
+
+// ============================================================================
+// Practice Interview Coaching Feedback Generation
+// ============================================================================
+
+export interface PracticeInterviewData extends InterviewReportData {
+  companyId?: string;
+  companyName?: string;
+}
+
+export async function generatePracticeInterviewFeedback(
+  data: PracticeInterviewData
+): Promise<CoachingFeedback> {
+  return Sentry.startSpan({ name: "ai.coaching_feedback", op: "ai.pipeline" }, async (span) => {
+    try {
+      // Sanitize user-controllable inputs
+      const sanitizedCode = sanitizeCode(data.code);
+      const sanitizedLanguage = sanitizeForPrompt(data.language);
+      const sanitizedProblemId = sanitizeForPrompt(data.problemId || 'Coding Challenge');
+      const sanitizedCompany = sanitizeForPrompt(data.companyName || 'Tech Company');
+
+      return await withGeminiRetry(async () => {
+        // Format transcript for analysis
+        const formattedTranscript = data.transcript.length > 0
+          ? data.transcript.map(msg => {
+            const time = new Date(msg.timestamp).toLocaleTimeString();
+            const speaker = msg.speaker === 'agent' ? 'Coach' : 'Student';
+            const sanitizedMessage = sanitizeForPrompt(msg.message);
+            return `[${time}] ${speaker}: ${sanitizedMessage}`;
+          }).join('\n')
+          : 'No conversation recorded.';
+
+        // Calculate test statistics
+        const latestTestResult = data.testResults[data.testResults.length - 1];
+        const testStats = latestTestResult
+          ? `${latestTestResult.testsPassed}/${latestTestResult.testsTotal} tests passed`
+          : 'No tests executed';
+
+        const prompt = `
+You are a supportive coding coach helping a student improve their interview skills.
+Your role is to provide ENCOURAGING, CONSTRUCTIVE feedback - NOT a hiring decision.
+
+**IMPORTANT: DO NOT include any HIRE/NO HIRE recommendations. This is practice mode.**
+
+**PRACTICE SESSION CONTEXT:**
+Company Style: ${sanitizedCompany}
+Problem: ${sanitizedProblemId}
+Language: ${sanitizedLanguage}
+
+**CONVERSATION TRANSCRIPT:**
+${formattedTranscript}
+
+**CODE SUBMISSION:**
+\`\`\`${sanitizedLanguage}
+${sanitizedCode}
+\`\`\`
+
+**TEST RESULTS:**
+${testStats}
+
+**CODE ANALYSIS:**
+${data.codeAnalysis ? `
+- Quality Score: ${data.codeAnalysis.score}/10
+- Security Score: ${data.codeAnalysis.security_score}/10
+- Complexity: ${data.codeAnalysis.complexity}
+- Issues: ${data.codeAnalysis.issues.join('; ') || 'None found'}
+` : 'Not available'}
+
+---
+
+**YOUR TASK:**
+Generate coaching feedback as JSON with this EXACT structure:
+
+{
+  "overallLevel": "Beginner" | "Developing" | "Proficient" | "Advanced" | "Expert",
+  "overallScore": 1-10,
+  "categories": {
+    "problemSolving": {
+      "level": "Beginner" | "Developing" | "Proficient" | "Advanced" | "Expert",
+      "score": 1-10,
+      "description": "Brief positive observation about their problem-solving approach"
+    },
+    "codeQuality": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their code quality"
+    },
+    "communication": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their communication"
+    },
+    "optimization": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their optimization thinking"
+    }
+  },
+  "strengths": [
+    "Specific strength 1 (be encouraging!)",
+    "Specific strength 2",
+    "Specific strength 3"
+  ],
+  "improvementPlan": [
+    {
+      "priority": "High" | "Medium" | "Low",
+      "area": "Area name (e.g., 'Algorithm Design')",
+      "suggestion": "Specific, actionable advice",
+      "resources": ["Optional resource 1", "Optional resource 2"]
+    }
+  ],
+  "recommendedProblems": [
+    {
+      "title": "Problem name",
+      "difficulty": "Easy" | "Medium" | "Hard",
+      "reason": "Why this problem would help them improve",
+      "tags": ["Tag1", "Tag2"]
+    }
+  ],
+  "encouragement": "A warm, encouraging message to motivate continued practice"
+}
+
+**GUIDELINES:**
+1. Be ENCOURAGING and SUPPORTIVE - this is for learning, not evaluation
+2. Focus on GROWTH and POTENTIAL, not failures
+3. Provide SPECIFIC, ACTIONABLE improvement suggestions
+4. Recommend 2-3 problems that would help them grow
+5. NEVER mention hiring decisions or job readiness
+6. Frame weaknesses as "opportunities to grow"
+7. Celebrate small wins and effort
+
+Output JSON only:`;
+
+        span.setAttribute("ai.model_id", MODEL_NAME);
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+
+        const parseResult = parseGeminiJSON<CoachingFeedback>(text, DEFAULT_COACHING_FEEDBACK);
+
+        if (!parseResult.success) {
+          Sentry.captureMessage("Gemini Coaching feedback parsing failed", {
+            level: "warning",
+            extra: { rawResponse: parseResult.rawText?.substring(0, 500) }
+          });
+          return DEFAULT_COACHING_FEEDBACK;
+        }
+
+        // Validate and normalize the parsed result
+        const feedback = parseResult.data;
+        return {
+          overallLevel: feedback.overallLevel || calculateSkillLevel(feedback.overallScore || 5),
+          overallScore: typeof feedback.overallScore === 'number'
+            ? Math.min(10, Math.max(1, feedback.overallScore))
+            : 5,
+          categories: {
+            problemSolving: feedback.categories?.problemSolving || DEFAULT_COACHING_FEEDBACK.categories.problemSolving,
+            codeQuality: feedback.categories?.codeQuality || DEFAULT_COACHING_FEEDBACK.categories.codeQuality,
+            communication: feedback.categories?.communication || DEFAULT_COACHING_FEEDBACK.categories.communication,
+            optimization: feedback.categories?.optimization || DEFAULT_COACHING_FEEDBACK.categories.optimization,
+          },
+          strengths: Array.isArray(feedback.strengths) && feedback.strengths.length > 0
+            ? feedback.strengths
+            : DEFAULT_COACHING_FEEDBACK.strengths,
+          improvementPlan: Array.isArray(feedback.improvementPlan) && feedback.improvementPlan.length > 0
+            ? feedback.improvementPlan
+            : DEFAULT_COACHING_FEEDBACK.improvementPlan,
+          recommendedProblems: Array.isArray(feedback.recommendedProblems) && feedback.recommendedProblems.length > 0
+            ? feedback.recommendedProblems
+            : DEFAULT_COACHING_FEEDBACK.recommendedProblems,
+          encouragement: typeof feedback.encouragement === 'string' && feedback.encouragement
+            ? feedback.encouragement
+            : DEFAULT_COACHING_FEEDBACK.encouragement,
+        };
+      }, GEMINI_RETRY_CONFIG, 'generatePracticeInterviewFeedback');
+    } catch (error) {
+      Sentry.captureException(error);
+      console.error("Coaching feedback generation failed:", error);
+      return DEFAULT_COACHING_FEEDBACK;
     }
   });
 }
