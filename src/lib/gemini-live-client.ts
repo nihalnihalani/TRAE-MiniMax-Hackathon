@@ -17,8 +17,8 @@ const OUTPUT_SAMPLE_RATE = 24000; // Output is 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
-// Use the Gemini 2.0 Flash model for live audio (stable)
-const MODEL = "models/gemini-2.0-flash-live-001";
+// Use the native audio model as specified by user
+const MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
