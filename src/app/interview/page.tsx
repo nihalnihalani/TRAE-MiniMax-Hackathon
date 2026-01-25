@@ -301,18 +301,18 @@ export default function InterviewPage() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="vertical">
-          <ResizablePanel defaultSize={70}>
-            <ResizablePanelGroup direction="horizontal">
-              {/* Left Panel: Problem Description */}
-              <ResizablePanel defaultSize={25} minSize={20}>
-                <ProblemDescription />
-              </ResizablePanel>
+        <ResizablePanelGroup direction="horizontal">
+          {/* Left Panel: Problem Description */}
+          <ResizablePanel defaultSize={25} minSize={20}>
+            <ProblemDescription />
+          </ResizablePanel>
 
-              <ResizableHandle />
+          <ResizableHandle />
 
-              {/* Center Panel: Editor */}
-              <ResizablePanel defaultSize={50} minSize={30}>
+          {/* Center Panel: Editor & Console */}
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel defaultSize={70}>
                 <CodeEditor
                   language="python"
                   initialCode={code}
@@ -321,53 +321,50 @@ export default function InterviewPage() {
                   isRunning={isRunning}
                 />
               </ResizablePanel>
-
               <ResizableHandle />
-
-              {/* Right Panel: Agent & Controls */}
-              <ResizablePanel defaultSize={25} minSize={20} className="bg-card border-l">
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="p-4 border-b">
-                    <InterviewAgent />
-                  </div>
-
-                  <Controls
-                    onRun={() => handleRun(code)}
-                    onAnalyze={handleAnalyze}
-                    onCodeRabbit={handleCodeRabbit}
-                    onAutoFix={handleAutoFix}
-                    onEndInterview={() => setShowReport(true)}
-                    isRunning={isRunning}
-                    isAnalyzing={isAnalyzing}
-                    isCodeRabbitLoading={isCodeRabbitLoading}
-                    isFixing={isFixing}
-                    hasError={!!lastError}
-                  />
-
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-                    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
-                      <TabsList className="grid w-full grid-cols-2 mb-4">
-                        <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
-                        <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="gemini" className="flex-1 mt-0">
-                        <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
-                      </TabsContent>
-                      <TabsContent value="coderabbit" className="flex-1 mt-0">
-                        <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
-                      </TabsContent>
-                    </Tabs>
-                  </div>
-                </div>
+              <ResizablePanel defaultSize={30} minSize={10}>
+                <ConsolePanel output={consoleOutput} />
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
 
           <ResizableHandle />
 
-          {/* Bottom Panel: Console */}
-          <ResizablePanel defaultSize={30} minSize={10}>
-            <ConsolePanel output={consoleOutput} />
+          {/* Right Panel: Agent & Controls */}
+          <ResizablePanel defaultSize={25} minSize={20} className="bg-card border-l">
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="p-4 border-b">
+                <InterviewAgent />
+              </div>
+
+              <Controls
+                onRun={() => handleRun(code)}
+                onAnalyze={handleAnalyze}
+                onCodeRabbit={handleCodeRabbit}
+                onAutoFix={handleAutoFix}
+                onEndInterview={() => setShowReport(true)}
+                isRunning={isRunning}
+                isAnalyzing={isAnalyzing}
+                isCodeRabbitLoading={isCodeRabbitLoading}
+                isFixing={isFixing}
+                hasError={!!lastError}
+              />
+
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
+                    <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="gemini" className="flex-1 mt-0">
+                    <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
+                  </TabsContent>
+                  <TabsContent value="coderabbit" className="flex-1 mt-0">
+                    <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
