@@ -23,6 +23,8 @@ export function InterviewAgent() {
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
+    const [isModelSpeaking, setIsModelSpeaking] = useState(false);
+    const [wasInterrupted, setWasInterrupted] = useState(false);
     const clientRef = useRef<GeminiLiveClient | null>(null);
 
     // Tools for Gemini
@@ -84,11 +86,33 @@ export function InterviewAgent() {
         };
         client.onError = (err) => {
             console.error("Gemini Client Error:", err);
-            // Optionally show toast
+            setIsThinking(false);
+            setCurrentAction('');
         };
         client.onMessage = (msg) => {
-             // Optional: Handle text transcript updates from model
+             // Handle text transcript updates from model
              useInterviewStore.getState().addTranscriptMessage('agent', msg, 'audio');
+        };
+        // New callbacks for natural conversation flow
+        client.onInterrupted = () => {
+            console.log("🛑 User interrupted - stopping AI speech");
+            setWasInterrupted(true);
+            setIsModelSpeaking(false);
+            setIsThinking(false);
+            setCurrentAction('');
+            // Brief visual feedback then reset
+            setTimeout(() => setWasInterrupted(false), 1000);
+        };
+        client.onTurnEnd = () => {
+            console.log("✅ Model turn complete");
+            setIsModelSpeaking(false);
+            setIsThinking(false);
+        };
+        client.onModelSpeaking = (speaking) => {
+            setIsModelSpeaking(speaking);
+            if (speaking) {
+                setCurrentAction('Alexis speaking...');
+            }
         };
 
         clientRef.current = client;
@@ -220,15 +244,23 @@ export function InterviewAgent() {
     return (
         <div id="agent-container" className="flex flex-col gap-4">
             {/* Thinking Indicator */}
-            {isThinking && (
-                <ThinkingIndicator isThinking={isThinking} currentAction={currentAction} />
+            {(isThinking || isModelSpeaking) && (
+                <ThinkingIndicator isThinking={isThinking || isModelSpeaking} currentAction={currentAction} />
+            )}
+
+            {/* Interruption feedback */}
+            {wasInterrupted && (
+                <div className="text-xs text-yellow-400 bg-yellow-900/20 p-2 rounded border border-yellow-500/30 flex items-center gap-2 animate-pulse">
+                    <MicOff className="w-3 h-3" />
+                    Listening to you...
+                </div>
             )}
 
             <div className="flex items-center gap-4 p-4 border rounded-xl bg-card">
                 <StatusIndicator status={status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'} />
 
                 <div className="flex-1 w-full min-w-0">
-                    <Visualizer isSpeaking={isSpeaking} volume={volume} /> 
+                    <Visualizer isSpeaking={isSpeaking || isModelSpeaking} volume={volume} />
                 </div>
 
                 {status === 'connected' ? (

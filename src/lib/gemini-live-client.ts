@@ -1,17 +1,25 @@
 /**
- * Gemini Live Client
- * Handles WebSocket connection to Gemini Multimodal Live API
- * Manages Audio Input (Mic) and Output (Speaker)
+ * Gemini Live Client v2
+ * Enhanced WebSocket connection to Gemini Multimodal Live API
+ * Features:
+ * - Native audio model (gemini-2.5-flash-native-audio-preview)
+ * - Voice Activity Detection (VAD) for natural turn-taking
+ * - Interruption handling - stops when user speaks
+ * - Proactive tool calling
  */
 
 import { INTERVIEW_TOOLS } from "./gemini-tools";
 import { getSystemInstruction } from "./interviewer-prompt";
 
-// Constants for Audio
-const SAMPLE_RATE = 24000; // Gemini Live prefers 24kHz
+// Constants
+const SAMPLE_RATE = 16000; // Native audio model uses 16kHz input
+const OUTPUT_SAMPLE_RATE = 24000; // Output is 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
-const MODEL = "models/gemini-2.0-flash-exp";
+
+// Use the latest native audio model for better conversation flow
+const MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog";
+// Alternative model if needed: "models/gemini-2.5-flash-native-audio-preview-12-2025"
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
@@ -34,9 +42,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 export class GeminiLiveClient {
   private ws: WebSocket | null = null;
   private audioContext: AudioContext | null = null;
+  private outputAudioContext: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
-  private workletNode: AudioWorkletNode | null = null;
-  private gainNode: GainNode | null = null;
   private interviewMode: InterviewMode = 'real';
   private problemContext: ProblemContext | null = null;
 
@@ -44,12 +51,17 @@ export class GeminiLiveClient {
   private audioQueue: Float32Array[] = [];
   private isPlaying = false;
   private nextPlayTime = 0;
+  private currentSource: AudioBufferSourceNode | null = null;
 
+  // Callbacks
   public onStatusChange: (status: ConnectionStatus) => void = () => {};
   public onMessage: (message: string) => void = () => {};
   public onError: (error: Error) => void = () => {};
   public onToolsCall: (toolCalls: any[]) => Promise<any[]> = async () => [];
   public onVolume: (volume: number) => void = () => {};
+  public onInterrupted: () => void = () => {};
+  public onTurnEnd: () => void = () => {};
+  public onModelSpeaking: (isSpeaking: boolean) => void = () => {};
 
   constructor(private apiKey: string, mode: InterviewMode = 'real') {
     this.interviewMode = mode;
@@ -71,7 +83,6 @@ export class GeminiLiveClient {
 
   /**
    * Set the problem context - MUST be called before connect()
-   * This sends the problem directly to Gemini so it knows what the candidate is solving
    */
   setProblemContext(problem: ProblemContext) {
     this.problemContext = problem;
@@ -86,12 +97,12 @@ export class GeminiLiveClient {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = async () => {
-        console.log("Gemini Live WebSocket Connected");
+        console.log("🎙️ Gemini Live WebSocket Connected");
         this.onStatusChange('connected');
-        
-        // Send initial setup message
+
+        // Send initial setup message with VAD config
         this.sendSetupMessage();
-        
+
         // Start Audio Input
         await this.startAudioInput();
       };
@@ -106,8 +117,8 @@ export class GeminiLiveClient {
         this.onError(new Error("WebSocket connection error"));
       };
 
-      this.ws.onclose = () => {
-        console.log("Gemini Live WebSocket Closed");
+      this.ws.onclose = (event) => {
+        console.log("Gemini Live WebSocket Closed", event.code, event.reason);
         this.onStatusChange('disconnected');
         this.stopAudio();
       };
@@ -128,8 +139,7 @@ export class GeminiLiveClient {
   }
 
   /**
-   * Send text to be spoken by Gemini Live (for wizard mode)
-   * The text will be processed and returned as audio
+   * Send text input (for wizard mode or manual input)
    */
   sendText(text: string) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -159,13 +169,31 @@ export class GeminiLiveClient {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
+  /**
+   * Clear audio queue and stop current playback (called on interruption)
+   */
+  clearAudioQueue() {
+    this.audioQueue = [];
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop();
+      } catch (e) {
+        // Already stopped
+      }
+      this.currentSource = null;
+    }
+    this.isPlaying = false;
+    this.nextPlayTime = 0;
+    this.onModelSpeaking(false);
+    console.log("🔇 Audio queue cleared (interrupted)");
+  }
+
   private sendSetupMessage() {
     if (!this.ws) return;
 
-    // Get the comprehensive interviewer system instruction based on mode
+    // Build comprehensive system instruction with problem context
     let systemInstruction = getSystemInstruction(this.interviewMode);
 
-    // CRITICAL: Include problem context directly so Gemini knows what the interview is about
     if (this.problemContext) {
       const problemSection = `
 
@@ -193,7 +221,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
 ---
 
-**IMPORTANT:** You already know the problem above. Start the interview by greeting the candidate warmly, then immediately present this problem in your own words (don't read it verbatim). Ask if they have any clarifying questions before they start coding.
+**START NOW:** Greet the candidate warmly (e.g., "Hey! I'm Alexis, nice to meet you!"), then present this problem in your own words. Don't read verbatim. Ask if they have questions before coding.
 `;
       systemInstruction = systemInstruction + problemSection;
     }
@@ -206,19 +234,34 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
           parts: [{ text: systemInstruction }]
         },
         generationConfig: {
-          responseModalities: ["AUDIO"], // We want audio back
+          responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: "Aoede" // Professional, warm female voice
+                voiceName: "Aoede" // Warm, professional voice
               }
-            }
+            },
+            // Enable affective dialog for natural responses
+            languageCode: "en-US"
+          }
+        },
+        // Voice Activity Detection configuration for natural turn-taking
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            disabled: false,
+            // Sensitivity settings for better interruption detection
+            startOfSpeechSensitivity: "START_OF_SPEECH_SENSITIVITY_HIGH",
+            endOfSpeechSensitivity: "END_OF_SPEECH_SENSITIVITY_HIGH",
+            // Short silence threshold for responsive conversation
+            prefixPaddingMs: 100,
+            silenceDurationMs: 500
           }
         }
       }
     };
 
-    console.log(`🎙️ Gemini Live setup with ${this.interviewMode} mode, problem: ${this.problemContext?.title || 'none'}`);
+    console.log(`🎙️ Gemini Live setup: ${this.interviewMode} mode, model: ${MODEL}`);
+    console.log(`📋 Problem: ${this.problemContext?.title || 'none'}`);
     this.ws.send(JSON.stringify(setupMessage));
   }
 
@@ -231,18 +274,38 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       message = JSON.parse(data);
     }
 
-    // Handle Server Content (Audio)
+    // Handle setup complete
+    if (message.setupComplete) {
+      console.log("✅ Gemini Live setup complete");
+    }
+
+    // Handle Server Content (Audio/Text)
     if (message.serverContent) {
+      // Check for interruption - user started speaking while model was talking
+      if (message.serverContent.interrupted === true) {
+        console.log("🛑 Model interrupted by user");
+        this.clearAudioQueue();
+        this.onInterrupted();
+      }
+
+      // Check for turn complete
+      if (message.serverContent.turnComplete === true) {
+        console.log("✅ Model turn complete");
+        this.onTurnEnd();
+      }
+
+      // Process model's turn content
       if (message.serverContent.modelTurn) {
-        const parts = message.serverContent.modelTurn.parts;
+        const parts = message.serverContent.modelTurn.parts || [];
         for (const part of parts) {
-          if (part.inlineData && part.inlineData.mimeType.startsWith("audio/")) {
-            // Decode Base64 audio
+          // Handle audio output
+          if (part.inlineData && part.inlineData.mimeType?.startsWith("audio/")) {
             const audioData = this.base64ToFloat32Array(part.inlineData.data);
             this.enqueueAudio(audioData);
           }
+          // Handle text output (transcript)
           if (part.text) {
-             this.onMessage(part.text);
+            this.onMessage(part.text);
           }
         }
       }
@@ -250,70 +313,120 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
     // Handle Tool Calls
     if (message.toolCall) {
-      console.log("Tool Call Received:", message.toolCall);
-      const functionCalls = message.toolCall.functionCalls;
-      const responses = await this.onToolsCall(functionCalls);
-      
-      // Send Tool Response
-      const toolResponse = {
-        toolResponse: {
-          functionResponses: responses
-        }
-      };
-      this.ws?.send(JSON.stringify(toolResponse));
+      console.log("🛠️ Tool Call Received:", message.toolCall.functionCalls?.map((f: any) => f.name));
+      const functionCalls = message.toolCall.functionCalls || [];
+
+      try {
+        // Execute tools with timeout
+        const responses = await Promise.race([
+          this.onToolsCall(functionCalls),
+          new Promise<any[]>((_, reject) =>
+            setTimeout(() => reject(new Error("Tool execution timeout")), 30000)
+          )
+        ]);
+
+        // Send Tool Response
+        const toolResponse = {
+          toolResponse: {
+            functionResponses: responses
+          }
+        };
+
+        console.log("📤 Sending tool responses:", responses.map(r => r.name));
+        this.ws?.send(JSON.stringify(toolResponse));
+      } catch (error) {
+        console.error("❌ Tool execution failed:", error);
+        // Send error response for all tools
+        const errorResponses = functionCalls.map((call: any) => ({
+          name: call.name,
+          response: { error: `Tool execution failed: ${error}` }
+        }));
+
+        this.ws?.send(JSON.stringify({
+          toolResponse: { functionResponses: errorResponses }
+        }));
+      }
+    }
+
+    // Handle errors
+    if (message.error) {
+      console.error("❌ Gemini API Error:", message.error);
+      this.onError(new Error(message.error.message || "Gemini API error"));
     }
   }
 
-  // Audio Handling
+  // Audio Input Handling
 
   private async startAudioInput() {
     try {
+      // Input context at 16kHz (native audio model preference)
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         sampleRate: SAMPLE_RATE,
+      });
+
+      // Output context at 24kHz
+      this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: OUTPUT_SAMPLE_RATE,
       });
 
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           sampleRate: SAMPLE_RATE,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
         },
       });
 
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      
-      // Simple ScriptProcessor for now (AudioWorklet is better but harder to inject without a file)
-      // Buffer size 2048, 1 input channel, 1 output channel
-      const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
-      
+
+      // Use ScriptProcessor (works reliably across browsers)
+      const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
       processor.onaudioprocess = (e) => {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
-        
-        // Convert Float32 [-1, 1] to Int16 PCM Base64
+
+        // Calculate input volume for visualization
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += inputData[i] * inputData[i];
+        }
+        const inputVolume = Math.sqrt(sum / inputData.length);
+
+        // Only emit volume if significant (avoid noise floor)
+        if (inputVolume > 0.01) {
+          this.onVolume(inputVolume);
+        }
+
+        // Convert to Int16 PCM Base64
         const pcmData = this.float32ToInt16Base64(inputData);
-        
-        // Send Realtime Input
-        const realTimeInput = {
+
+        // Send audio chunk
+        const realtimeInput = {
           realtimeInput: {
             mediaChunks: [
               {
-                mimeType: "audio/pcm;rate=24000",
+                mimeType: `audio/pcm;rate=${SAMPLE_RATE}`,
                 data: pcmData
               }
             ]
           }
         };
-        
-        this.ws.send(JSON.stringify(realTimeInput));
+
+        this.ws.send(JSON.stringify(realtimeInput));
       };
 
       source.connect(processor);
-      processor.connect(this.audioContext.destination); // Needed for Chrome to activate
+      processor.connect(this.audioContext.destination);
 
-      // Keep references to prevent GC
+      // Store references
       (this as any).processor = processor;
       (this as any).source = source;
+
+      console.log("🎤 Microphone active at", SAMPLE_RATE, "Hz");
 
     } catch (err) {
       console.error("Audio Input Error:", err);
@@ -327,76 +440,81 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       this.mediaStream = null;
     }
     if (this.audioContext) {
-      this.audioContext.close();
+      this.audioContext.close().catch(() => {});
       this.audioContext = null;
     }
-    this.audioQueue = [];
-    this.isPlaying = false;
+    if (this.outputAudioContext) {
+      this.outputAudioContext.close().catch(() => {});
+      this.outputAudioContext = null;
+    }
+    this.clearAudioQueue();
   }
 
-  // Audio Output Utilities
+  // Audio Output
 
   private enqueueAudio(data: Float32Array) {
     this.audioQueue.push(data);
+    this.onModelSpeaking(true);
     if (!this.isPlaying) {
       this.playQueue();
     }
   }
 
   private async playQueue() {
-    if (!this.audioContext || this.audioQueue.length === 0) {
+    const ctx = this.outputAudioContext;
+    if (!ctx || this.audioQueue.length === 0) {
       this.isPlaying = false;
+      this.onModelSpeaking(false);
+      this.onVolume(0);
       return;
     }
 
     this.isPlaying = true;
     const chunk = this.audioQueue.shift()!;
 
-    const buffer = this.audioContext.createBuffer(1, chunk.length, SAMPLE_RATE);
-    // Type assertion needed due to TypeScript's strict ArrayBuffer typing
+    const buffer = ctx.createBuffer(1, chunk.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
 
-    // Calculate RMS volume for visualization
+    // Calculate output volume
     let sum = 0;
     for (let i = 0; i < chunk.length; i++) {
       sum += chunk[i] * chunk[i];
     }
     const rms = Math.sqrt(sum / chunk.length);
-    this.onVolume(rms); // Emit volume level (0-1 typically, but can spike higher)
+    this.onVolume(rms * 2); // Amplify for visualization
 
-    const source = this.audioContext.createBufferSource();
+    const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(this.audioContext.destination);
-    
-    // Simple scheduling
-    const currentTime = this.audioContext.currentTime;
-    // If nextPlayTime is in the past, reset it
+    source.connect(ctx.destination);
+
+    this.currentSource = source;
+
+    const currentTime = ctx.currentTime;
     if (this.nextPlayTime < currentTime) {
-        this.nextPlayTime = currentTime;
+      this.nextPlayTime = currentTime;
     }
-    
+
     source.start(this.nextPlayTime);
     this.nextPlayTime += buffer.duration;
-    
+
     source.onended = () => {
+      this.currentSource = null;
       this.playQueue();
     };
   }
 
-  // Data Conversion Utilities
+  // Data Conversion
 
   private float32ToInt16Base64(float32Array: Float32Array): string {
     const int16Array = new Int16Array(float32Array.length);
     for (let i = 0; i < float32Array.length; i++) {
-      let s = Math.max(-1, Math.min(1, float32Array[i]));
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
       int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
-    
-    // Convert to binary string
+
     let binary = '';
     const bytes = new Uint8Array(int16Array.buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < bytes.byteLength; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
@@ -406,19 +524,17 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
+      bytes[i] = binary.charCodeAt(i);
     }
 
-    // Copy to ensure we have a proper ArrayBuffer (not SharedArrayBuffer)
     const buffer = new ArrayBuffer(bytes.length);
     new Uint8Array(buffer).set(bytes);
 
-    // Assuming PCM 16-bit LE
     const int16Array = new Int16Array(buffer);
     const float32Array = new Float32Array(int16Array.length);
 
     for (let i = 0; i < int16Array.length; i++) {
-        float32Array[i] = int16Array[i] / 32768.0;
+      float32Array[i] = int16Array[i] / 32768.0;
     }
 
     return float32Array;
