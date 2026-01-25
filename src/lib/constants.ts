@@ -48,8 +48,9 @@ export const GEMINI_RETRY_CONFIG = {
 export const CODERABBIT_INSTALL_CMD = 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh';
 export const CODERABBIT_INSTALL_TIMEOUT = 60000; // 60 seconds
 
-// Voice Configuration
-export const DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9"; // Default Jessica voice
+// Voice Configuration (Gemini Live voices: Aoede, Puck, Charon, Kore, Fenrir)
+export const DEFAULT_GEMINI_VOICE = "Aoede"; // Warm, professional female voice
+export const DEFAULT_VOICE_ID = DEFAULT_GEMINI_VOICE; // Alias for backwards compatibility
 
 // Keyboard Shortcuts
 export const WIZARD_SHORTCUT = { ctrl: true, shift: true, key: 'X' };

@@ -1,61 +1,105 @@
 'use client';
 
-import { useConversation } from '@elevenlabs/react';
 import { useInterviewStore } from '@/lib/store';
 import { Button } from "@/components/ui/button";
 import { StatusIndicator } from './StatusIndicator';
 import { Visualizer } from './Visualizer';
 import { ThinkingIndicator } from './ThinkingIndicator';
-import { Mic, MicOff, Wand2 } from 'lucide-react';
-import { useCallback, useEffect, useState, useMemo } from 'react';
-import { agentReasoning } from '@/lib/agent-reasoning';
+import { Mic, MicOff, Wand2, GraduationCap } from 'lucide-react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { getAgentTools } from '@/lib/agent-tools';
 import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
+import { GeminiLiveClient, ConnectionStatus } from '@/lib/gemini-live-client';
 
 export function InterviewAgent() {
-    const { code, isWizardMode, workspaceId } = useInterviewStore();
+    const { code, isWizardMode, workspaceId, interviewMode } = useInterviewStore();
     const [scriptIndex, setScriptIndex] = useState(0);
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
+    
+    // Gemini Live Client State
+    const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+    const [isSpeaking, setIsSpeaking] = useState(false); // Can be inferred from queue
+    const clientRef = useRef<GeminiLiveClient | null>(null);
 
-    // Memoize tools to avoid re-creation on every render, but update when workspaceId changes
-    const tools = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
+    // Tools for Gemini
+    const toolFunctions = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
 
-    const conversation = useConversation({
-        onConnect: () => {
-            console.log("✅ Connected to ElevenLabs");
-        },
-        onDisconnect: () => {
-            console.log("❌ Disconnected from ElevenLabs");
-        },
-        onMessage: (message: any) => {
-            console.log("📩 Agent message:", message);
-            console.log("Message type:", message.type);
-            console.log("Message content:", message.message || message.text || message);
-
-            // Store agent messages in transcript
-            const messageText = message.message || message.text || JSON.stringify(message);
-            if (messageText && typeof messageText === 'string') {
-                useInterviewStore.getState().addTranscriptMessage('agent', messageText, 'audio');
+    const handleToolsCall = async (functionCalls: any[]) => {
+        console.log("🛠️ Handling Tool Calls:", functionCalls);
+        const responses = [];
+        
+        for (const call of functionCalls) {
+            const name = call.name;
+            const args = call.args;
+            const fn = (toolFunctions as any)[name];
+            
+            if (fn) {
+                setIsThinking(true);
+                setCurrentAction(`Running ${name}...`);
+                try {
+                    const result = await fn(args);
+                    responses.push({
+                        name: name,
+                        response: { result: result } 
+                    });
+                } catch (err) {
+                    responses.push({
+                        name: name,
+                        response: { error: String(err) }
+                    });
+                }
+                setIsThinking(false);
+            } else {
+                console.warn(`Tool ${name} not found`);
+                responses.push({
+                    name: name,
+                    response: { error: "Tool not found" }
+                });
             }
-        },
-        onError: (err: any) => {
-            console.error("❌ Voice Error:", err);
-            console.error("Error details:", JSON.stringify(err, null, 2));
-            console.error("Error type:", typeof err);
-            console.error("Error message:", err?.message);
-            console.error("Error code:", err?.code);
-        },
-        onStatusChange: (status: any) => {
-            console.log("🔄 Status changed to:", status);
-        },
-        onModeChange: (mode: any) => {
-            console.log("🎭 Mode changed to:", mode);
-        },
-        clientTools: tools
-    });
+        }
+        return responses;
+    };
 
-    const { status, isSpeaking, startSession, endSession } = conversation;
+    // Initialize Client
+    useEffect(() => {
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error("Gemini API Key missing");
+            return;
+        }
+
+        const client = new GeminiLiveClient(apiKey);
+        
+        client.onStatusChange = (s) => setStatus(s);
+        client.onToolsCall = handleToolsCall;
+        client.onError = (err) => {
+            console.error("Gemini Client Error:", err);
+            // Optionally show toast
+        };
+        client.onMessage = (msg) => {
+             // Optional: Handle text transcript updates from model
+             useInterviewStore.getState().addTranscriptMessage('agent', msg, 'audio');
+        };
+
+        clientRef.current = client;
+
+        return () => {
+            client.disconnect();
+        };
+    }, [workspaceId]); // Re-init if workspace changes might be needed, or just keep it stable
+
+    const handleStart = async () => {
+        if (clientRef.current) {
+            await clientRef.current.connect();
+        }
+    };
+
+    const handleStop = () => {
+        if (clientRef.current) {
+            clientRef.current.disconnect();
+        }
+    };
 
     // Keyboard shortcut for Wizard Mode Next Line
     useEffect(() => {
@@ -73,15 +117,22 @@ export function InterviewAgent() {
     const triggerWizardLine = async () => {
         const text = WIZARD_SCRIPT[scriptIndex % WIZARD_SCRIPT.length];
         console.log("Wizard Mode Triggered:", text);
-
-        // Advance index immediately
         setScriptIndex(prev => prev + 1);
 
         try {
-            // Force "Thinking" state visually
             setIsThinking(true);
-            setCurrentAction("Wizard speaking...");
+            setCurrentAction("Alexis speaking...");
 
+            // If connected to Gemini Live, speak through the active session
+            if (clientRef.current?.isConnected()) {
+                clientRef.current.sendText(text);
+                // Audio will be played through the existing audio queue
+                // Set a timeout to clear thinking state (audio playback is async)
+                setTimeout(() => setIsThinking(false), 3000);
+                return;
+            }
+
+            // Fallback to TTS API endpoint (using Gemini TTS)
             const response = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,39 +158,6 @@ export function InterviewAgent() {
         }
     };
 
-    const handleStart = async () => {
-        console.log("🎯 Starting interview session...");
-        console.log("WorkspaceId:", workspaceId);
-        console.log("Agent ID:", process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID);
-
-        try {
-            console.log("📱 Requesting microphone access...");
-            await navigator.mediaDevices.getUserMedia({ audio: true });
-            console.log("✅ Microphone access granted");
-
-            const sessionOptions = {
-                agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "replace-with-agent-id",
-                // NOTE: Removed overrides - agent config should be set on ElevenLabs platform
-                // The overrides were causing immediate disconnection
-            };
-
-            console.log("🚀 Starting ElevenLabs session with options:", sessionOptions);
-
-            // ElevenLabs SDK session options - using type assertion via unknown
-            await (startSession as unknown as (options: Record<string, unknown>) => Promise<void>)(sessionOptions);
-
-            console.log("✅ Session started successfully");
-        } catch (err) {
-            console.error("❌ Failed to start conversation:", err);
-            console.error("Error stack:", (err as Error).stack);
-            alert("Microphone access failed or Agent ID missing. Please check your browser permissions and .env settings.");
-        }
-    };
-
-    const handleStop = async () => {
-        await endSession();
-    };
-
     return (
         <div id="agent-container" className="flex flex-col gap-4">
             {/* Thinking Indicator */}
@@ -148,10 +166,11 @@ export function InterviewAgent() {
             )}
 
             <div className="flex items-center gap-4 p-4 border rounded-xl bg-card">
-                <StatusIndicator status={status} />
+                <StatusIndicator status={status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'} />
 
-                <div className="flex-1 flex justify-center">
-                    <Visualizer isSpeaking={isSpeaking} />
+                <div className="flex-1 w-full min-w-0">
+                    {/* Visualizer might need raw audio data, for now we pass simple isSpeaking state if we track it */}
+                    <Visualizer isSpeaking={status === 'connected'} /> 
                 </div>
 
                 {status === 'connected' ? (
@@ -162,11 +181,16 @@ export function InterviewAgent() {
                     <Button
                         variant="default"
                         onClick={handleStart}
-                        disabled={status === 'connecting' || !workspaceId}
-                        title={!workspaceId ? "Waiting for workspace..." : undefined}
+                        disabled={status === 'connecting'} // Allow starting even if workspaceId is null, though tools might fail
+                        title={!workspaceId ? "Workspace not ready (Tools restricted)" : undefined}
                     >
-                        <Mic className="w-4 h-4 mr-2" />
-                        {!workspaceId ? "Initializing..." : "Start Interview"}
+                        {interviewMode === 'practice' ? (
+                            <GraduationCap className="w-4 h-4 mr-2" />
+                        ) : (
+                            <Mic className="w-4 h-4 mr-2" />
+                        )}
+                        {status === 'connecting' ? "Connecting..." : 
+                         interviewMode === 'practice' ? "Start Practice (Gemini)" : "Start Interview (Gemini)"}
                     </Button>
                 )}
             </div>
