@@ -5,10 +5,10 @@
 
 // Wizard Mode Script - Demo interview prompts
 export const WIZARD_SCRIPT = [
-    "Hi there! I'm Alex. Today we're going to work on reversing a linked list. Can you start by defining the Node class?",
-    "Great start. Now, how would you handle the prev pointer in the reversal function?",
-    "Hmm, take a look at line 15. Are we updating the head reference correctly?",
-    "Excellent work. You nailed the pointer manipulation."
+  "Hi there! I'm Alexis. Today we're going to work on reversing a linked list. Can you start by defining the Node class?",
+  "Great start. Now, how would you handle the prev pointer in the reversal function?",
+  "Hmm, take a look at line 15. Are we updating the head reference correctly?",
+  "Excellent work. You nailed the pointer manipulation."
 ];
 
 // Integrity Shield Thresholds

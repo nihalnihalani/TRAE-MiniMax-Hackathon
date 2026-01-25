@@ -18,8 +18,8 @@ export function InterviewAgent() {
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
 
-    // Memoize tools to avoid re-creation on every render, but update when workspaceId changes
-    const tools = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
+    // Memoize tools once - they access the latest state via logic inside getAgentTools
+    const tools = useMemo(() => getAgentTools(null), []);
 
     const conversation = useConversation({
         onConnect: () => {
@@ -154,7 +154,7 @@ export function InterviewAgent() {
             <div className="flex items-center gap-4 p-4 border rounded-xl bg-card">
                 <StatusIndicator status={status} />
 
-                <div className="flex-1 flex justify-center">
+                <div className="flex-1 w-full min-w-0">
                     <Visualizer isSpeaking={isSpeaking} />
                 </div>
 
