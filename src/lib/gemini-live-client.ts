@@ -11,8 +11,9 @@
 import { INTERVIEW_TOOLS } from "./gemini-tools";
 import { getSystemInstruction } from "./interviewer-prompt";
 
-// Constants - Use 24kHz for both input and output for better quality
-const SAMPLE_RATE = 24000; // 24kHz for high quality audio
+// Audio sample rates per Gemini Live API spec
+const INPUT_SAMPLE_RATE = 16000;  // Input MUST be 16kHz
+const OUTPUT_SAMPLE_RATE = 24000; // Output is always 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
@@ -380,7 +381,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: { ideal: SAMPLE_RATE },
+          sampleRate: { ideal: INPUT_SAMPLE_RATE },
           echoCancellation: { ideal: true },
           noiseSuppression: { ideal: true },
           autoGainControl: { ideal: true },
@@ -393,18 +394,24 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
         throw new Error("AudioContext not supported in this browser");
       }
 
-      // Single AudioContext at 24kHz for both input and output
+      // Input AudioContext at 16kHz (required by Gemini Live API)
       this.audioContext = new AudioContextClass({
-        sampleRate: SAMPLE_RATE,
-        latencyHint: 'interactive', // Optimize for low latency
+        sampleRate: INPUT_SAMPLE_RATE,
+        latencyHint: 'interactive',
       });
 
-      // Use same context for output
-      this.outputAudioContext = this.audioContext;
+      // Output AudioContext at 24kHz (Gemini outputs at 24kHz)
+      this.outputAudioContext = new AudioContextClass({
+        sampleRate: OUTPUT_SAMPLE_RATE,
+        latencyHint: 'interactive',
+      });
 
-      // Resume audio context if suspended (browser autoplay policy)
+      // Resume audio contexts if suspended (browser autoplay policy)
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
+      }
+      if (this.outputAudioContext.state === 'suspended') {
+        await this.outputAudioContext.resume();
       }
 
       if (!this.audioContext) {
@@ -455,7 +462,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
           realtimeInput: {
             mediaChunks: [
               {
-                mimeType: `audio/pcm;rate=${SAMPLE_RATE}`,
+                mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}`,
                 data: pcmData
               }
             ]
@@ -475,7 +482,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       (this as any).highPassFilter = highPassFilter;
       (this as any).lowPassFilter = lowPassFilter;
 
-      console.log("🎤 Microphone active at", SAMPLE_RATE, "Hz with noise filtering");
+      console.log("🎤 Microphone active at", INPUT_SAMPLE_RATE, "Hz with noise filtering");
 
     } catch (err: any) {
       console.error("Audio Input Error:", err);
@@ -505,7 +512,10 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     if (this.audioContext) {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;
-      this.outputAudioContext = null; // Same context, just clear reference
+    }
+    if (this.outputAudioContext) {
+      this.outputAudioContext.close().catch(() => {});
+      this.outputAudioContext = null;
     }
     this.clearAudioQueue();
   }
@@ -532,7 +542,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     this.isPlaying = true;
     const chunk = this.audioQueue.shift()!;
 
-    const buffer = ctx.createBuffer(1, chunk.length, SAMPLE_RATE);
+    const buffer = ctx.createBuffer(1, chunk.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
 
     // Calculate output volume
