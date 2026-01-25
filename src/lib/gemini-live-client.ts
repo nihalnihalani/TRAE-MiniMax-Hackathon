@@ -267,16 +267,10 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
             languageCode: "en-US"
           }
         },
-        // Voice Activity Detection configuration for natural turn-taking
+        // Voice Activity Detection - use defaults for reliable behavior
         realtimeInputConfig: {
           automaticActivityDetection: {
-            disabled: false,
-            // Sensitivity settings for better interruption detection
-            startOfSpeechSensitivity: "START_OF_SPEECH_SENSITIVITY_HIGH",
-            endOfSpeechSensitivity: "END_OF_SPEECH_SENSITIVITY_HIGH",
-            // Short silence threshold for responsive conversation
-            prefixPaddingMs: 100,
-            silenceDurationMs: 500
+            disabled: false
           }
         }
       }
