@@ -520,57 +520,66 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     this.clearAudioQueue();
   }
 
-  // Audio Output
+  // Audio Output - Seamless playback with pre-scheduling
 
   private enqueueAudio(data: Float32Array) {
     this.audioQueue.push(data);
     this.onModelSpeaking(true);
-    if (!this.isPlaying) {
-      this.playQueue();
-    }
+
+    // Schedule audio immediately for seamless playback
+    this.scheduleAudioPlayback();
   }
 
-  private async playQueue() {
+  private scheduleAudioPlayback() {
     const ctx = this.outputAudioContext;
-    if (!ctx || this.audioQueue.length === 0) {
-      this.isPlaying = false;
-      this.onModelSpeaking(false);
-      this.onVolume(0);
-      return;
+    if (!ctx) return;
+
+    // Schedule all queued chunks ahead of time for gapless playback
+    while (this.audioQueue.length > 0) {
+      const chunk = this.audioQueue.shift()!;
+
+      const buffer = ctx.createBuffer(1, chunk.length, OUTPUT_SAMPLE_RATE);
+      buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
+
+      // Calculate output volume for visualization
+      let sum = 0;
+      for (let i = 0; i < chunk.length; i++) {
+        sum += chunk[i] * chunk[i];
+      }
+      const rms = Math.sqrt(sum / chunk.length);
+      this.onVolume(rms * 2);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+
+      // Get current time and ensure we schedule in the future
+      const currentTime = ctx.currentTime;
+      if (this.nextPlayTime < currentTime) {
+        // Add small buffer (50ms) to prevent underruns
+        this.nextPlayTime = currentTime + 0.05;
+      }
+
+      source.start(this.nextPlayTime);
+      this.nextPlayTime += buffer.duration;
+
+      // Track the last source for interruption handling
+      this.currentSource = source;
+
+      // Mark as playing
+      this.isPlaying = true;
+
+      // Set up end handler for the last chunk
+      source.onended = () => {
+        // Check if there's more audio or if we're done
+        if (this.audioQueue.length === 0 && ctx.currentTime >= this.nextPlayTime - 0.1) {
+          this.isPlaying = false;
+          this.onModelSpeaking(false);
+          this.onVolume(0);
+          this.currentSource = null;
+        }
+      };
     }
-
-    this.isPlaying = true;
-    const chunk = this.audioQueue.shift()!;
-
-    const buffer = ctx.createBuffer(1, chunk.length, OUTPUT_SAMPLE_RATE);
-    buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
-
-    // Calculate output volume
-    let sum = 0;
-    for (let i = 0; i < chunk.length; i++) {
-      sum += chunk[i] * chunk[i];
-    }
-    const rms = Math.sqrt(sum / chunk.length);
-    this.onVolume(rms * 2); // Amplify for visualization
-
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-
-    this.currentSource = source;
-
-    const currentTime = ctx.currentTime;
-    if (this.nextPlayTime < currentTime) {
-      this.nextPlayTime = currentTime;
-    }
-
-    source.start(this.nextPlayTime);
-    this.nextPlayTime += buffer.duration;
-
-    source.onended = () => {
-      this.currentSource = null;
-      this.playQueue();
-    };
   }
 
   // Data Conversion
