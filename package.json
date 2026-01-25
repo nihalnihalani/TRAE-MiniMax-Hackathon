@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest"
+    "test": "vitest",
+    "test:integration": "node scripts/integration-test.js"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.132.0",
