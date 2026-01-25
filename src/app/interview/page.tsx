@@ -57,11 +57,19 @@ export default function InterviewPage() {
       try {
         const res = await fetch('/api/sandbox/create', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ language: 'python' }),
         });
         const data = await res.json();
-        setWorkspaceId(data.id);
-        addLog(`Workspace initialized: ${data.id}`);
+        // Handle both direct and wrapped response formats
+        const workspaceId = data.data?.id || data.id;
+        if (workspaceId) {
+          setWorkspaceId(workspaceId);
+          addLog(`Workspace initialized: ${workspaceId}`);
+        } else {
+          console.error("Workspace creation failed:", data);
+          addLog(`Failed to initialize workspace: ${data.error || 'Unknown error'}`);
+        }
       } catch (err) {
         console.error("Failed to init workspace", err);
         addLog("Failed to initialize workspace.");
@@ -83,14 +91,17 @@ export default function InterviewPage() {
     try {
       const res = await fetch('/api/sandbox/execute', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId,
           code: codeToRun,
           language: 'python'
         }),
       });
-      const data = await res.json();
-      
+      const json = await res.json();
+      // Handle both direct and wrapped response formats
+      const data = json.data || json;
+
       if (data.stdout) {
         addLog(data.stdout, 'stdout');
         setLastError(null);
@@ -98,7 +109,7 @@ export default function InterviewPage() {
       if (data.stderr) {
         addLog(`Error:\n${data.stderr}`, 'stderr');
         setLastError(data.stderr);
-        
+
         // Auto-suggest fix in logs
         addLog("💡 Tip: Click 'Auto Fix' to let the agent repair this.", 'system');
       }
@@ -120,15 +131,18 @@ export default function InterviewPage() {
     try {
         const res = await fetch('/api/analysis/autofix', {
             method: 'POST',
-            body: JSON.stringify({ 
-                code, 
-                error: lastError, 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code,
+                error: lastError,
                 language: 'python',
                 workspaceId
             })
         });
-        const data = await res.json();
-        
+        const json = await res.json();
+        // Handle both direct and wrapped response formats
+        const data = json.data || json;
+
         if (data.fixedCode) {
             setCode(data.fixedCode);
             addLog("✨ Agent applied fix to code.", 'agent');
@@ -158,9 +172,12 @@ export default function InterviewPage() {
     try {
       const res = await fetch('/api/analysis/review', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, language: 'python' }),
       });
-      const data = await res.json();
+      const json = await res.json();
+      // Handle both direct and wrapped response formats
+      const data = json.data || json;
       setReview(data);
     } catch (err) {
       console.error(err);
@@ -177,13 +194,16 @@ export default function InterviewPage() {
     try {
         const res = await fetch('/api/analysis/coderabbit', {
             method: 'POST',
-            body: JSON.stringify({ 
-                code, 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code,
                 language: 'python',
-                workspaceId // Pass workspaceId to enable sandbox CLI analysis
+                workspaceId
             }),
         });
-        const data = await res.json();
+        const json = await res.json();
+        // Handle both direct and wrapped response formats
+        const data = json.data || json;
         setCodeRabbitReview(data);
     } catch (err) {
         console.error(err);
