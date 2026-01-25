@@ -9,17 +9,20 @@ import { Mic, MicOff, Wand2, GraduationCap } from 'lucide-react';
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { getAgentTools } from '@/lib/agent-tools';
 import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
-import { GeminiLiveClient, ConnectionStatus } from '@/lib/gemini-live-client';
+import { GeminiLiveClient, ConnectionStatus, InterviewMode, ProblemContext } from '@/lib/gemini-live-client';
+import { PROBLEMS } from '@/data/problems';
+import { COMPANIES } from '@/data/company-problems';
 
 export function InterviewAgent() {
-    const { code, isWizardMode, workspaceId, interviewMode } = useInterviewStore();
+    const { code, isWizardMode, workspaceId, interviewMode, currentProblemId, selectedCompanyId } = useInterviewStore();
     const [scriptIndex, setScriptIndex] = useState(0);
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
     
     // Gemini Live Client State
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
-    const [isSpeaking, setIsSpeaking] = useState(false); // Can be inferred from queue
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [volume, setVolume] = useState(0);
     const clientRef = useRef<GeminiLiveClient | null>(null);
 
     // Tools for Gemini
@@ -69,10 +72,16 @@ export function InterviewAgent() {
             return;
         }
 
-        const client = new GeminiLiveClient(apiKey);
-        
+        // Create client with current interview mode (real or practice)
+        const mode: InterviewMode = interviewMode === 'practice' ? 'practice' : 'real';
+        const client = new GeminiLiveClient(apiKey, mode);
+
         client.onStatusChange = (s) => setStatus(s);
         client.onToolsCall = handleToolsCall;
+        client.onVolume = (vol) => {
+            setVolume(vol);
+            setIsSpeaking(vol > 0.01);
+        };
         client.onError = (err) => {
             console.error("Gemini Client Error:", err);
             // Optionally show toast
@@ -83,14 +92,64 @@ export function InterviewAgent() {
         };
 
         clientRef.current = client;
+        console.log(`🎙️ Gemini Live client initialized in ${mode} mode`);
 
         return () => {
             client.disconnect();
         };
-    }, [workspaceId]); // Re-init if workspace changes might be needed, or just keep it stable
+    }, [workspaceId, interviewMode]); // Re-init if workspace or interview mode changes
+
+    // Helper to get current problem context for Gemini
+    const getCurrentProblemContext = (): ProblemContext | null => {
+        if (!currentProblemId) return null;
+
+        // Try regular problems first
+        const regularProblem = PROBLEMS.find(p => p.id === currentProblemId);
+        if (regularProblem) {
+            return {
+                title: regularProblem.title,
+                difficulty: regularProblem.difficulty,
+                description: regularProblem.description,
+                examples: regularProblem.examples,
+                constraints: regularProblem.constraints,
+                functionName: regularProblem.functionName,
+                starterCode: regularProblem.starterCode,
+            };
+        }
+
+        // Try company problems (practice mode)
+        if (interviewMode === 'practice' && selectedCompanyId) {
+            const company = COMPANIES.find(c => c.id === selectedCompanyId);
+            const companyProblem = company?.problems.find(p => p.id === currentProblemId);
+            if (companyProblem) {
+                return {
+                    title: companyProblem.title,
+                    difficulty: companyProblem.difficulty,
+                    description: companyProblem.description,
+                    examples: companyProblem.examples,
+                    constraints: companyProblem.constraints,
+                    functionName: companyProblem.functionName,
+                    starterCode: companyProblem.starterCode,
+                    companyName: company?.name,
+                    tags: companyProblem.tags,
+                };
+            }
+        }
+
+        return null;
+    };
 
     const handleStart = async () => {
         if (clientRef.current) {
+            // Set problem context BEFORE connecting so Gemini knows the problem
+            const problemContext = getCurrentProblemContext();
+            if (problemContext) {
+                clientRef.current.setProblemContext(problemContext);
+                console.log(`📋 Starting interview with problem: ${problemContext.title}`);
+            } else {
+                console.warn("⚠️ No problem selected - Gemini won't know what to interview about");
+            }
+
             await clientRef.current.connect();
         }
     };
@@ -169,8 +228,7 @@ export function InterviewAgent() {
                 <StatusIndicator status={status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'} />
 
                 <div className="flex-1 w-full min-w-0">
-                    {/* Visualizer might need raw audio data, for now we pass simple isSpeaking state if we track it */}
-                    <Visualizer isSpeaking={status === 'connected'} /> 
+                    <Visualizer isSpeaking={isSpeaking} volume={volume} /> 
                 </div>
 
                 {status === 'connected' ? (

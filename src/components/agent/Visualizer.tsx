@@ -2,10 +2,19 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
-export function Visualizer({ isSpeaking }: { isSpeaking: boolean }) {
+export function Visualizer({ isSpeaking, volume = 0 }: { isSpeaking: boolean, volume?: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  
+  // Use a ref to store the latest volume so the animation loop can access it
+  // without needing to be recreated on every render
+  const volumeRef = useRef(volume);
+  
+  // Update ref when prop changes
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -34,21 +43,54 @@ export function Visualizer({ isSpeaking }: { isSpeaking: boolean }) {
     if (!ctx) return;
 
     let animationId: number;
+    // Smoothed volume for animation
+    let currentLevel = 0;
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = isSpeaking ? '#4ade80' : '#374151'; // Green if speaking, Gray if not
+      
+      // Determine target level:
+      // If speaking, use the real volume (boosted slightly for visibility).
+      // If not speaking, idle at 0.
+      const targetLevel = isSpeaking ? (volumeRef.current * 2.5) : 0; // Boost factor
+      
+      // Smooth interpolation (attack/decay)
+      // Attack fast, decay slightly slower
+      const lerpFactor = targetLevel > currentLevel ? 0.3 : 0.1;
+      currentLevel += (targetLevel - currentLevel) * lerpFactor;
+      
+      // Ensure we have some minimum movement if "speaking" but volume is low, to show activity
+      // Or just rely on the volume. Let's add a tiny noise floor if speaking.
+      const displayLevel = isSpeaking ? Math.max(currentLevel, 0.05) : currentLevel;
 
-      const bars = Math.max(10, Math.floor(canvas.width / 10)); // Dynamic bar count based on width
+      ctx.fillStyle = isSpeaking ? '#a855f7' : '#374151'; // Purple-500 if speaking (Gemini brand colorish), Gray if not
+
+      const bars = Math.max(20, Math.floor(canvas.width / 6)); // More bars for smoother look
       const spacing = 2;
-      const barWidth = (canvas.width - (bars - 1) * spacing) / bars;
+      const totalBarWidth = canvas.width - (bars - 1) * spacing;
+      const barWidth = totalBarWidth / bars;
+      const centerY = canvas.height / 2;
 
       for (let i = 0; i < bars; i++) {
-        const height = isSpeaking
-          ? Math.random() * canvas.height * 0.8 + 5
-          : 5;
+        // Create a symmetric wave shape
+        // Center bars are taller, edges are shorter
+        const normalizeX = i / (bars - 1); // 0 to 1
+        const window = Math.sin(normalizeX * Math.PI); // 0 -> 1 -> 0 (Bell curve shape)
+        
+        // Add some random jitter for "voice" texture
+        const jitter = Math.random() * 0.2 + 0.8; 
+        
+        // Calculate height based on volume and window
+        const maxHeight = canvas.height * 0.9;
+        const barHeight = Math.max(4, displayLevel * maxHeight * window * jitter);
 
-        ctx.fillRect(i * (barWidth + spacing), canvas.height / 2 - height / 2, barWidth, height);
+        const x = i * (barWidth + spacing);
+        const y = centerY - barHeight / 2;
+        
+        // Draw rounded rect
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, barHeight, 4);
+        ctx.fill();
       }
 
       animationId = requestAnimationFrame(draw);
@@ -57,7 +99,7 @@ export function Visualizer({ isSpeaking }: { isSpeaking: boolean }) {
     draw();
 
     return () => cancelAnimationFrame(animationId);
-  }, [isSpeaking, dimensions]);
+  }, [isSpeaking, dimensions]); // Removed volume from deps to avoid re-effecting
 
   return (
     <div ref={containerRef} className="w-full h-[50px] relative">

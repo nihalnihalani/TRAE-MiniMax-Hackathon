@@ -5,12 +5,29 @@
  */
 
 import { INTERVIEW_TOOLS } from "./gemini-tools";
+import { getSystemInstruction } from "./interviewer-prompt";
 
 // Constants for Audio
 const SAMPLE_RATE = 24000; // Gemini Live prefers 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
-const MODEL = "models/gemini-2.0-flash-exp"; 
+const MODEL = "models/gemini-2.0-flash-exp";
+
+// Interview mode type
+export type InterviewMode = 'real' | 'practice';
+
+// Problem context to send to Gemini directly at startup
+export interface ProblemContext {
+  title: string;
+  difficulty: string;
+  description: string;
+  examples: Array<{ input: string; output: string; explanation?: string }>;
+  constraints: string[];
+  functionName: string;
+  starterCode?: string;
+  companyName?: string;
+  tags?: string[];
+}
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -20,7 +37,9 @@ export class GeminiLiveClient {
   private mediaStream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private gainNode: GainNode | null = null;
-  
+  private interviewMode: InterviewMode = 'real';
+  private problemContext: ProblemContext | null = null;
+
   // Audio Playback Queue
   private audioQueue: Float32Array[] = [];
   private isPlaying = false;
@@ -30,8 +49,34 @@ export class GeminiLiveClient {
   public onMessage: (message: string) => void = () => {};
   public onError: (error: Error) => void = () => {};
   public onToolsCall: (toolCalls: any[]) => Promise<any[]> = async () => [];
+  public onVolume: (volume: number) => void = () => {};
 
-  constructor(private apiKey: string) {}
+  constructor(private apiKey: string, mode: InterviewMode = 'real') {
+    this.interviewMode = mode;
+  }
+
+  /**
+   * Set the interview mode (real or practice)
+   */
+  setInterviewMode(mode: InterviewMode) {
+    this.interviewMode = mode;
+  }
+
+  /**
+   * Get the current interview mode
+   */
+  getInterviewMode(): InterviewMode {
+    return this.interviewMode;
+  }
+
+  /**
+   * Set the problem context - MUST be called before connect()
+   * This sends the problem directly to Gemini so it knows what the candidate is solving
+   */
+  setProblemContext(problem: ProblemContext) {
+    this.problemContext = problem;
+    console.log(`📋 Problem context set: ${problem.title}`);
+  }
 
   async connect() {
     this.onStatusChange('connecting');
@@ -117,16 +162,55 @@ export class GeminiLiveClient {
   private sendSetupMessage() {
     if (!this.ws) return;
 
+    // Get the comprehensive interviewer system instruction based on mode
+    let systemInstruction = getSystemInstruction(this.interviewMode);
+
+    // CRITICAL: Include problem context directly so Gemini knows what the interview is about
+    if (this.problemContext) {
+      const problemSection = `
+
+## CURRENT INTERVIEW PROBLEM
+
+**Title:** ${this.problemContext.title}
+**Difficulty:** ${this.problemContext.difficulty}
+${this.problemContext.companyName ? `**Company Style:** ${this.problemContext.companyName}` : ''}
+${this.problemContext.tags ? `**Tags:** ${this.problemContext.tags.join(', ')}` : ''}
+
+**Problem Description:**
+${this.problemContext.description}
+
+**Examples:**
+${this.problemContext.examples.map((ex, i) => `
+Example ${i + 1}:
+- Input: ${ex.input}
+- Output: ${ex.output}${ex.explanation ? `
+- Explanation: ${ex.explanation}` : ''}`).join('\n')}
+
+**Constraints:**
+${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
+
+**Function to Implement:** \`${this.problemContext.functionName}\`
+
+---
+
+**IMPORTANT:** You already know the problem above. Start the interview by greeting the candidate warmly, then immediately present this problem in your own words (don't read it verbatim). Ask if they have any clarifying questions before they start coding.
+`;
+      systemInstruction = systemInstruction + problemSection;
+    }
+
     const setupMessage = {
       setup: {
         model: MODEL,
         tools: INTERVIEW_TOOLS,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
         generationConfig: {
           responseModalities: ["AUDIO"], // We want audio back
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: "Aoede" // Or "Puck", "Charon", "Kore", "Fenrir"
+                voiceName: "Aoede" // Professional, warm female voice
               }
             }
           }
@@ -134,6 +218,7 @@ export class GeminiLiveClient {
       }
     };
 
+    console.log(`🎙️ Gemini Live setup with ${this.interviewMode} mode, problem: ${this.problemContext?.title || 'none'}`);
     this.ws.send(JSON.stringify(setupMessage));
   }
 
@@ -270,6 +355,14 @@ export class GeminiLiveClient {
     const buffer = this.audioContext.createBuffer(1, chunk.length, SAMPLE_RATE);
     // Type assertion needed due to TypeScript's strict ArrayBuffer typing
     buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
+
+    // Calculate RMS volume for visualization
+    let sum = 0;
+    for (let i = 0; i < chunk.length; i++) {
+      sum += chunk[i] * chunk[i];
+    }
+    const rms = Math.sqrt(sum / chunk.length);
+    this.onVolume(rms); // Emit volume level (0-1 typically, but can spike higher)
 
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;

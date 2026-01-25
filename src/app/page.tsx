@@ -34,11 +34,6 @@ export default function Home() {
 
         {/* Hero Section */}
         <div className="space-y-6 flex flex-col items-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-xs font-medium text-purple-600 animate-slide-up-fade">
-            <Sparkles className="w-3 h-3" />
-            <span>Mock Interview Mode Coming Soon</span>
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight flex flex-col items-center gap-2 pb-2">
             <span className="animate-slide-up-fade">Meet <span className="animate-color-wave font-extrabold tracking-tight">Alexis</span></span>
             <span className="animate-slide-up-fade delay-200 text-4xl md:text-6xl text-muted-foreground font-normal">

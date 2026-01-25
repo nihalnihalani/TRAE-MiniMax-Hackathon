@@ -485,33 +485,7 @@ export interface StructuredInterviewReport {
   finalFeedback: string;
 }
 
-const REPORT_JSON_SCHEMA = {
-  overallScore: "number (0-100)",
-  hireRecommendation: "string (HIRE, NO HIRE, etc)",
-  executiveSummary: "string (2-3 sentences)",
-  technicalEvaluation: {
-    score: "number (0-10)",
-    summary: "string",
-    strengths: ["string"],
-    weaknesses: ["string"]
-  },
-  communicationEvaluation: {
-    score: "number (0-10)",
-    summary: "string",
-    strengths: ["string"],
-    weaknesses: ["string"]
-  },
-  problemSolvingEvaluation: {
-    score: "number (0-10)",
-    summary: "string",
-    strengths: ["string"],
-    weaknesses: ["string"]
-  },
-  finalFeedback: "string (constructive feedback for candidate)"
-};
-
-// Placeholder for calculateIntegrityScore, assuming it's defined elsewhere or needs to be added.
-// For the purpose of this diff, we'll just define a basic one.
+// Calculate integrity score based on suspicious behaviors
 function calculateIntegrityScore(integrity: InterviewReportData['integrity']): number {
   let score = 100;
   if (integrity.blurCount > 5) score -= 30;
@@ -539,19 +513,54 @@ export async function generateInterviewReport(
         const formattedTranscript = data.transcript.length > 0
           ? data.transcript.map(msg => {
             const time = new Date(msg.timestamp).toLocaleTimeString();
-            const speaker = msg.speaker === 'agent' ? '🤖 Agent' : '👤 Candidate';
+            const speaker = msg.speaker === 'agent' ? 'Interviewer' : 'Candidate';
             const sanitizedMessage = sanitizeForPrompt(msg.message);
             return `[${time}] ${speaker}: ${sanitizedMessage}`;
           }).join('\n')
-          : 'No conversation recorded.';
+          : 'No conversation recorded during this interview.';
+
+        // Calculate test statistics
+        const latestTest = data.testResults[data.testResults.length - 1];
+        const testPassRate = latestTest
+          ? `${latestTest.testsPassed}/${latestTest.testsTotal} tests passed (${Math.round(latestTest.testsPassed / latestTest.testsTotal * 100)}%)`
+          : 'No tests executed';
+        const allTestsPassed = latestTest && latestTest.testsPassed === latestTest.testsTotal;
+
+        // Format code analysis if available
+        const codeAnalysisSection = data.codeAnalysis
+          ? `
+**AUTOMATED CODE ANALYSIS:**
+- Quality Score: ${data.codeAnalysis.score}/10
+- Security Score: ${data.codeAnalysis.security_score}/10
+- Time Complexity: ${data.codeAnalysis.complexity}
+- Issues Found: ${data.codeAnalysis.issues.length > 0 ? data.codeAnalysis.issues.join('; ') : 'None'}
+- Security Issues: ${data.codeAnalysis.security_issues.length > 0 ? data.codeAnalysis.security_issues.join('; ') : 'None'}
+` : '';
+
+        // Format CodeRabbit review if available
+        const codeRabbitSection = data.coderabbitReview
+          ? `
+**CODERABBIT REVIEW:**
+Summary: ${data.coderabbitReview.summary}
+Issues: ${data.coderabbitReview.issues.length > 0
+  ? data.coderabbitReview.issues.map(i => `- ${i.message} (${i.severity || 'info'})`).join('\n')
+  : 'No issues found'}
+` : '';
+
+        const integrityScore = calculateIntegrityScore(data.integrity);
+        const integrityWarning = integrityScore < 70
+          ? `⚠️ WARNING: Integrity concerns detected (score: ${integrityScore}/100). Large paste events or frequent tab switches may indicate external assistance.`
+          : '';
 
         const prompt = `
-Role: Expert Technical Interviewer
-Task: Generate a structured evaluation of a candidate's coding interview.
+You are a senior technical interviewer at a top tech company (FAANG-level). Generate a comprehensive, professional interview evaluation report.
 
-**INTERVIEW CONTEXT:**
-Problem: ${sanitizedProblemId}
-Language: ${sanitizedLanguage}
+## INTERVIEW DATA
+
+**Problem:** ${sanitizedProblemId}
+**Language:** ${sanitizedLanguage}
+**Test Results:** ${testPassRate}
+**Solution Status:** ${allTestsPassed ? '✅ All tests passing' : '⚠️ Some tests failing'}
 
 **CONVERSATION TRANSCRIPT:**
 ${formattedTranscript}
@@ -560,25 +569,67 @@ ${formattedTranscript}
 \`\`\`${sanitizedLanguage}
 ${sanitizedCode}
 \`\`\`
+${codeAnalysisSection}
+${codeRabbitSection}
 
-**TEST RESULTS:**
-${JSON.stringify(data.testResults.map(r => ({ passed: r.testsPassed, total: r.testsTotal })), null, 2)}
+**INTEGRITY METRICS:**
+- Integrity Score: ${integrityScore}/100
+- Tab Switches (Blur Events): ${data.integrity.blurCount}
+- Paste Events: ${data.integrity.pasteCount}
+- Large Paste Events (100+ chars): ${data.integrity.largePasteEvents.length}
+${integrityWarning}
 
-**INTEGRITY REPORT:**
-Score: ${calculateIntegrityScore(data.integrity)}/100
-(Note: Low integrity score implies cheating/copy-pasting)
+---
 
-**INSTRUCTIONS:**
-1. Analyze the candidate's code quality, problem-solving skills, and communication.
-2. Provide a fair, constructive evaluation.
-3. Output STRICTLY VALID JSON matching this schema:
-${JSON.stringify(REPORT_JSON_SCHEMA, null, 2)}
+## YOUR TASK
+
+Generate a detailed, fair evaluation. Consider:
+1. **Did they solve the problem?** Tests passing is a strong positive signal.
+2. **Code quality** - Is it clean, readable, well-structured?
+3. **Problem-solving approach** - Did they break it down? Consider edge cases?
+4. **Communication** - Did they explain their thinking clearly?
+5. **Time/space complexity** - Did they analyze and optimize?
+6. **Integrity** - Any red flags from large pastes or tab switches?
+
+**HIRE RECOMMENDATION GUIDE:**
+- STRONG HIRE: Solved optimally, excellent communication, clean code
+- HIRE: Solved correctly, good communication, acceptable code quality
+- LEAN HIRE: Solved with minor issues, decent communication
+- LEAN NO HIRE: Partially solved, struggled significantly, poor communication
+- NO HIRE: Did not solve, major issues, integrity concerns
+
+**OUTPUT FORMAT:**
+Return ONLY valid JSON with this exact structure:
+{
+  "overallScore": <0-100>,
+  "hireRecommendation": "<STRONG HIRE|HIRE|LEAN HIRE|LEAN NO HIRE|NO HIRE>",
+  "executiveSummary": "<2-3 sentence summary of the candidate's performance>",
+  "technicalEvaluation": {
+    "score": <0-10>,
+    "summary": "<1-2 sentences about technical skills>",
+    "strengths": ["<strength 1>", "<strength 2>"],
+    "weaknesses": ["<weakness 1>", "<weakness 2>"]
+  },
+  "communicationEvaluation": {
+    "score": <0-10>,
+    "summary": "<1-2 sentences about communication>",
+    "strengths": ["<strength 1>"],
+    "weaknesses": ["<weakness 1>"]
+  },
+  "problemSolvingEvaluation": {
+    "score": <0-10>,
+    "summary": "<1-2 sentences about problem-solving approach>",
+    "strengths": ["<strength 1>"],
+    "weaknesses": ["<weakness 1>"]
+  },
+  "finalFeedback": "<Constructive feedback for the candidate - what to improve>"
+}
 `;
 
         span.setAttribute("ai.model_id", MODEL_NAME);
 
         const result = await model.generateContent(prompt);
-        const response = await result.response;
+        const response = result.response;
         const text = response.text();
 
         // Default fallback if parsing fails completely
