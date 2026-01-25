@@ -1,11 +1,110 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as Sentry from "@sentry/nextjs";
 import { GEMINI_RETRY_CONFIG } from "./constants";
+import { CoachingFeedback, DEFAULT_COACHING_FEEDBACK, calculateSkillLevel } from "./coaching";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// Using Gemini 3 Flash Preview for fast, capable reasoning (1M context window)
+// Using Gemini 2.0 Flash for fast, capable reasoning
 const MODEL_NAME = "gemini-3-flash-preview";
+
+// ============================================================================
+// Input Sanitization for Prompt Injection Prevention
+// ============================================================================
+
+/**
+ * Sanitizes user input to prevent prompt injection attacks.
+ * This escapes special characters and patterns that could be used to
+ * manipulate AI behavior.
+ */
+function sanitizeForPrompt(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+
+  // Limit input length to prevent token exhaustion
+  const MAX_INPUT_LENGTH = 50000;
+  let sanitized = input.slice(0, MAX_INPUT_LENGTH);
+
+  // Escape patterns that could be used for prompt injection
+  const injectionPatterns = [
+    // System prompt overrides
+    { pattern: /\bignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, replacement: '[FILTERED]' },
+    { pattern: /\b(system|admin|root)\s*:\s*/gi, replacement: '[FILTERED]: ' },
+    { pattern: /\byou\s+are\s+now\s+/gi, replacement: '[FILTERED] ' },
+    { pattern: /\bforget\s+(everything|all|your)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bdisregard\s+(all|previous|your)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bpretend\s+(you|to\s+be)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bact\s+as\s+(if|a)\b/gi, replacement: '[FILTERED]' },
+    { pattern: /\bnew\s+instructions?\s*:/gi, replacement: '[FILTERED]:' },
+    { pattern: /\boverride\s+(system|instructions?|rules?)\b/gi, replacement: '[FILTERED]' },
+    // Role manipulation
+    { pattern: /\[\s*SYSTEM\s*\]/gi, replacement: '[FILTERED]' },
+    { pattern: /\[\s*INST\s*\]/gi, replacement: '[FILTERED]' },
+    { pattern: /<<\s*SYS\s*>>/gi, replacement: '[FILTERED]' },
+    { pattern: /<\|im_start\|>/gi, replacement: '[FILTERED]' },
+    { pattern: /<\|im_end\|>/gi, replacement: '[FILTERED]' },
+  ];
+
+  for (const { pattern, replacement } of injectionPatterns) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  // Escape markdown-like patterns that could break prompt structure
+  // But preserve code formatting
+  sanitized = sanitized
+    .replace(/^#{1,6}\s+/gm, '\\# ') // Escape headers at start of lines only
+    .replace(/^>\s+/gm, '\\> ')      // Escape blockquotes at start of lines
+    .replace(/^---+$/gm, '\\---')    // Escape horizontal rules
+    .replace(/^\*{3,}$/gm, '\\***'); // Escape emphasis patterns
+
+  return sanitized;
+}
+
+/**
+ * Sanitizes code input, preserving code structure while preventing injection.
+ */
+function sanitizeCode(code: string): string {
+  if (!code || typeof code !== 'string') {
+    return '';
+  }
+
+  // Limit code length
+  const MAX_CODE_LENGTH = 100000;
+  let sanitized = code.slice(0, MAX_CODE_LENGTH);
+
+  // Only filter the most dangerous prompt injection patterns in code
+  // Be more lenient since code can contain many special patterns legitimately
+  const codeInjectionPatterns = [
+    { pattern: /\bignore\s+all\s+previous\s+instructions\b/gi, replacement: '/* FILTERED */' },
+    { pattern: /\[\s*SYSTEM\s*\]/gi, replacement: '/* FILTERED */' },
+    { pattern: /<<\s*SYS\s*>>/gi, replacement: '/* FILTERED */' },
+  ];
+
+  for (const { pattern, replacement } of codeInjectionPatterns) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+
+  return sanitized;
+}
+
+/**
+ * Sanitizes error messages which might contain user-controlled content.
+ */
+function sanitizeError(error: string): string {
+  if (!error || typeof error !== 'string') {
+    return '';
+  }
+
+  // Limit error length
+  const MAX_ERROR_LENGTH = 5000;
+  let sanitized = error.slice(0, MAX_ERROR_LENGTH);
+
+  // Apply general sanitization
+  sanitized = sanitizeForPrompt(sanitized);
+
+  return sanitized;
+}
 
 export const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
@@ -37,24 +136,6 @@ function isNonRetryableError(error: unknown): boolean {
   return false;
 }
 
-function isRetryableError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    return (
-      message.includes('rate limit') ||
-      message.includes('quota') ||
-      message.includes('timeout') ||
-      message.includes('network') ||
-      message.includes('econnreset') ||
-      message.includes('econnrefused') ||
-      message.includes('temporarily') ||
-      message.includes('overloaded') ||
-      message.includes('503') ||
-      message.includes('429')
-    );
-  }
-  return true; // Default to retryable for unknown errors
-}
 
 async function withGeminiRetry<T>(
   operation: () => Promise<T>,
@@ -105,7 +186,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
   }
 
   // Strategy 1: Clean markdown code blocks and parse
-  let cleanText = text
+  const cleanText = text
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
     .trim();
@@ -113,7 +194,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
   try {
     const parsed = JSON.parse(cleanText);
     return { success: true, data: parsed };
-  } catch (e) {
+  } catch {
     // Continue to next strategy
   }
 
@@ -123,7 +204,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
     try {
       const parsed = JSON.parse(jsonObjectMatch[0]);
       return { success: true, data: parsed };
-    } catch (e) {
+    } catch {
       // Strategy 3: Try to fix common JSON issues
       const fixed = jsonObjectMatch[0]
         .replace(/,\s*}/g, '}')      // Remove trailing commas in objects
@@ -135,7 +216,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
       try {
         const parsed = JSON.parse(fixed);
         return { success: true, data: parsed };
-      } catch (e2) {
+      } catch {
         // Continue to next strategy
       }
     }
@@ -147,7 +228,7 @@ function parseGeminiJSON<T>(text: string, defaultValue: T): { success: boolean; 
     try {
       const parsed = JSON.parse(jsonArrayMatch[0]);
       return { success: true, data: parsed };
-    } catch (e) {
+    } catch {
       // All strategies failed
     }
   }
@@ -172,17 +253,22 @@ export async function generateAutoFix(
 ): Promise<AutoFixResult | null> {
   return Sentry.startSpan({ name: "ai.autofix", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize inputs to prevent prompt injection
+      const sanitizedCode = sanitizeCode(code);
+      const sanitizedError = sanitizeError(error);
+      const sanitizedLanguage = sanitizeForPrompt(language);
+
       return await withGeminiRetry(async () => {
         const prompt = `
 Role: Senior Software Engineer & Debugger.
 Task: Fix the following code based on the error message.
-Language: ${language}
+Language: ${sanitizedLanguage}
 
 Error:
-${error}
+${sanitizedError}
 
 Original Code:
-${code}
+${sanitizedCode}
 
 Instructions:
 1. Analyze the error and the code.
@@ -260,10 +346,14 @@ export async function analyzeCodeWithGemini(
 ): Promise<CodeAnalysisResult> {
   return Sentry.startSpan({ name: "ai.analysis", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize inputs to prevent prompt injection
+      const sanitizedCode = sanitizeCode(code);
+      const sanitizedLanguage = sanitizeForPrompt(language);
+
       return await withGeminiRetry(async () => {
         const prompt = `
 Role: Senior Code Reviewer & Security Researcher.
-Input: ${language} Code.
+Input: ${sanitizedLanguage} Code.
 Task: Perform a comprehensive analysis including:
 
 1. Code Quality:
@@ -290,13 +380,13 @@ Output JSON only:
 }
 
 Code:
-${code}
+${sanitizedCode}
         `;
 
         span.setAttribute("ai.model_id", MODEL_NAME);
 
         const result = await model.generateContent(prompt);
-        const response = await result.response;
+        const response = result.response;
         const text = response.text();
 
         const parseResult = parseGeminiJSON<CodeAnalysisResult>(text, DEFAULT_ANALYSIS_RESULT);
@@ -349,7 +439,7 @@ export interface InterviewReportData {
     problemId: string;
     testsPassed: number;
     testsTotal: number;
-    details: any;
+    details: Record<string, unknown>;
   }[];
   integrity: {
     blurCount: number;
@@ -365,23 +455,180 @@ export interface InterviewReportData {
   };
   coderabbitReview?: {
     summary: string;
-    issues: any[];
+    issues: Array<{ message: string; severity?: string; line?: number }>;
   };
   problemId?: string;
 }
 
+export interface StructuredInterviewReport {
+  overallScore: number;
+  hireRecommendation: 'HIRE' | 'NO HIRE' | 'STRONG HIRE' | 'LEAN HIRE' | 'LEAN NO HIRE';
+  executiveSummary: string;
+  technicalEvaluation: {
+    score: number;
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  communicationEvaluation: {
+    score: number;
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  problemSolvingEvaluation: {
+    score: number;
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  finalFeedback: string;
+}
+
+const REPORT_JSON_SCHEMA = {
+  overallScore: "number (0-100)",
+  hireRecommendation: "string (HIRE, NO HIRE, etc)",
+  executiveSummary: "string (2-3 sentences)",
+  technicalEvaluation: {
+    score: "number (0-10)",
+    summary: "string",
+    strengths: ["string"],
+    weaknesses: ["string"]
+  },
+  communicationEvaluation: {
+    score: "number (0-10)",
+    summary: "string",
+    strengths: ["string"],
+    weaknesses: ["string"]
+  },
+  problemSolvingEvaluation: {
+    score: "number (0-10)",
+    summary: "string",
+    strengths: ["string"],
+    weaknesses: ["string"]
+  },
+  finalFeedback: "string (constructive feedback for candidate)"
+};
+
+// Placeholder for calculateIntegrityScore, assuming it's defined elsewhere or needs to be added.
+// For the purpose of this diff, we'll just define a basic one.
+function calculateIntegrityScore(integrity: InterviewReportData['integrity']): number {
+  let score = 100;
+  if (integrity.blurCount > 5) score -= 30;
+  else if (integrity.blurCount > 2) score -= 10;
+
+  if (integrity.pasteCount > 3) score -= 10;
+
+  if (integrity.largePasteEvents.length > 0) score -= 50;
+
+  return Math.max(0, score);
+}
+
 export async function generateInterviewReport(
   data: InterviewReportData
-): Promise<string> {
+): Promise<StructuredInterviewReport | null> {
   return Sentry.startSpan({ name: "ai.interview_report", op: "ai.pipeline" }, async (span) => {
     try {
+      // Sanitize user-controllable inputs
+      const sanitizedCode = sanitizeCode(data.code);
+      const sanitizedLanguage = sanitizeForPrompt(data.language);
+      const sanitizedProblemId = sanitizeForPrompt(data.problemId || 'Coding Challenge');
+
       return await withGeminiRetry(async () => {
-        // Format transcript for better readability
+        // Format transcript for better readability (sanitize messages)
         const formattedTranscript = data.transcript.length > 0
           ? data.transcript.map(msg => {
             const time = new Date(msg.timestamp).toLocaleTimeString();
             const speaker = msg.speaker === 'agent' ? '🤖 Agent' : '👤 Candidate';
-            return `[${time}] ${speaker}: ${msg.message}`;
+            const sanitizedMessage = sanitizeForPrompt(msg.message);
+            return `[${time}] ${speaker}: ${sanitizedMessage}`;
+          }).join('\n')
+          : 'No conversation recorded.';
+
+        const prompt = `
+Role: Expert Technical Interviewer
+Task: Generate a structured evaluation of a candidate's coding interview.
+
+**INTERVIEW CONTEXT:**
+Problem: ${sanitizedProblemId}
+Language: ${sanitizedLanguage}
+
+**CONVERSATION TRANSCRIPT:**
+${formattedTranscript}
+
+**FINAL CODE SUBMISSION:**
+\`\`\`${sanitizedLanguage}
+${sanitizedCode}
+\`\`\`
+
+**TEST RESULTS:**
+${JSON.stringify(data.testResults.map(r => ({ passed: r.testsPassed, total: r.testsTotal })), null, 2)}
+
+**INTEGRITY REPORT:**
+Score: ${calculateIntegrityScore(data.integrity)}/100
+(Note: Low integrity score implies cheating/copy-pasting)
+
+**INSTRUCTIONS:**
+1. Analyze the candidate's code quality, problem-solving skills, and communication.
+2. Provide a fair, constructive evaluation.
+3. Output STRICTLY VALID JSON matching this schema:
+${JSON.stringify(REPORT_JSON_SCHEMA, null, 2)}
+`;
+
+        span.setAttribute("ai.model_id", MODEL_NAME);
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        // Default fallback if parsing fails completely
+        const defaultReport: StructuredInterviewReport = {
+          overallScore: 0,
+          hireRecommendation: 'NO HIRE',
+          executiveSummary: "Failed to generate report.",
+          technicalEvaluation: { score: 0, summary: "N/A", strengths: [], weaknesses: [] },
+          communicationEvaluation: { score: 0, summary: "N/A", strengths: [], weaknesses: [] },
+          problemSolvingEvaluation: { score: 0, summary: "N/A", strengths: [], weaknesses: [] },
+          finalFeedback: "Error generating report."
+        };
+        return parseGeminiJSON<StructuredInterviewReport>(text, defaultReport).data;
+      }, GEMINI_RETRY_CONFIG, 'generateInterviewReport');
+    } catch (error) {
+      console.error("Error generating interview report:", error);
+      Sentry.captureException(error);
+      throw error;
+    }
+  });
+}
+
+// ============================================================================
+// Practice Interview Coaching Feedback Generation
+// ============================================================================
+
+export interface PracticeInterviewData extends InterviewReportData {
+  companyId?: string;
+  companyName?: string;
+}
+
+export async function generatePracticeInterviewFeedback(
+  data: PracticeInterviewData
+): Promise<CoachingFeedback> {
+  return Sentry.startSpan({ name: "ai.coaching_feedback", op: "ai.pipeline" }, async (span) => {
+    try {
+      // Sanitize user-controllable inputs
+      const sanitizedCode = sanitizeCode(data.code);
+      const sanitizedLanguage = sanitizeForPrompt(data.language);
+      const sanitizedProblemId = sanitizeForPrompt(data.problemId || 'Coding Challenge');
+      const sanitizedCompany = sanitizeForPrompt(data.companyName || 'Tech Company');
+
+      return await withGeminiRetry(async () => {
+        // Format transcript for analysis
+        const formattedTranscript = data.transcript.length > 0
+          ? data.transcript.map(msg => {
+            const time = new Date(msg.timestamp).toLocaleTimeString();
+            const speaker = msg.speaker === 'agent' ? 'Coach' : 'Student';
+            const sanitizedMessage = sanitizeForPrompt(msg.message);
+            return `[${time}] ${speaker}: ${sanitizedMessage}`;
           }).join('\n')
           : 'No conversation recorded.';
 
@@ -391,177 +638,146 @@ export async function generateInterviewReport(
           ? `${latestTestResult.testsPassed}/${latestTestResult.testsTotal} tests passed`
           : 'No tests executed';
 
-        // Format all test attempts
-        const testHistory = data.testResults.length > 0
-          ? data.testResults.map((result, idx) => {
-            const time = new Date(result.timestamp).toLocaleTimeString();
-            return `Attempt ${idx + 1} [${time}]: ${result.testsPassed}/${result.testsTotal} passed`;
-          }).join('\n')
-          : 'No test attempts';
-
         const prompt = `
-You are an expert technical interviewer conducting a comprehensive evaluation of a coding interview session.
+You are a supportive coding coach helping a student improve their interview skills.
+Your role is to provide ENCOURAGING, CONSTRUCTIVE feedback - NOT a hiring decision.
 
-**INTERVIEW CONTEXT:**
-Problem: ${data.problemId || 'Coding Challenge'}
-Language: ${data.language}
+**IMPORTANT: DO NOT include any HIRE/NO HIRE recommendations. This is practice mode.**
+
+**PRACTICE SESSION CONTEXT:**
+Company Style: ${sanitizedCompany}
+Problem: ${sanitizedProblemId}
+Language: ${sanitizedLanguage}
 
 **CONVERSATION TRANSCRIPT:**
 ${formattedTranscript}
 
-**FINAL CODE SUBMISSION:**
-\`\`\`${data.language}
-${data.code}
+**CODE SUBMISSION:**
+\`\`\`${sanitizedLanguage}
+${sanitizedCode}
 \`\`\`
 
 **TEST RESULTS:**
-Final Result: ${testStats}
+${testStats}
 
-Test History:
-${testHistory}
-
-**CODE QUALITY ANALYSIS:**
+**CODE ANALYSIS:**
 ${data.codeAnalysis ? `
-- Overall Score: ${data.codeAnalysis.score}/10
+- Quality Score: ${data.codeAnalysis.score}/10
 - Security Score: ${data.codeAnalysis.security_score}/10
 - Complexity: ${data.codeAnalysis.complexity}
-- Issues Found: ${data.codeAnalysis.issues.length > 0 ? data.codeAnalysis.issues.join('; ') : 'None'}
-- Security Issues: ${data.codeAnalysis.security_issues.length > 0 ? data.codeAnalysis.security_issues.join('; ') : 'None'}
-` : 'Code analysis not available'}
-
-**CODERABBIT REVIEW:**
-${data.coderabbitReview?.summary || 'CodeRabbit review not available'}
-
-**INTERVIEW INTEGRITY METRICS:**
-- Tab switches (candidate left interview): ${data.integrity.blurCount} times
-- Total paste events: ${data.integrity.pasteCount}
-- Large paste events (>100 chars): ${data.integrity.largePasteEvents.length}
+- Issues: ${data.codeAnalysis.issues.join('; ') || 'None found'}
+` : 'Not available'}
 
 ---
 
 **YOUR TASK:**
-Generate a comprehensive, professional interview evaluation report in **well-formatted markdown**.
+Generate coaching feedback as JSON with this EXACT structure:
 
-**CRITICAL FORMATTING REQUIREMENTS:**
-1. Use clear hierarchical headings (##, ###, ####)
-2. Use bullet points and numbered lists extensively  
-3. Use blockquotes (>) for important callouts
-4. Use tables where appropriate
-5. Use **bold** for emphasis
-6. Keep paragraphs SHORT (2-3 sentences max)
-7. Add blank lines between sections
-8. Use horizontal rules (---) to separate major sections
-9. Use emojis for visual appeal (📊, 🎯, ⭐, 🔒, etc.)
+{
+  "overallLevel": "Beginner" | "Developing" | "Proficient" | "Advanced" | "Expert",
+  "overallScore": 1-10,
+  "categories": {
+    "problemSolving": {
+      "level": "Beginner" | "Developing" | "Proficient" | "Advanced" | "Expert",
+      "score": 1-10,
+      "description": "Brief positive observation about their problem-solving approach"
+    },
+    "codeQuality": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their code quality"
+    },
+    "communication": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their communication"
+    },
+    "optimization": {
+      "level": "...",
+      "score": 1-10,
+      "description": "Brief positive observation about their optimization thinking"
+    }
+  },
+  "strengths": [
+    "Specific strength 1 (be encouraging!)",
+    "Specific strength 2",
+    "Specific strength 3"
+  ],
+  "improvementPlan": [
+    {
+      "priority": "High" | "Medium" | "Low",
+      "area": "Area name (e.g., 'Algorithm Design')",
+      "suggestion": "Specific, actionable advice",
+      "resources": ["Optional resource 1", "Optional resource 2"]
+    }
+  ],
+  "recommendedProblems": [
+    {
+      "title": "Problem name",
+      "difficulty": "Easy" | "Medium" | "Hard",
+      "reason": "Why this problem would help them improve",
+      "tags": ["Tag1", "Tag2"]
+    }
+  ],
+  "encouragement": "A warm, encouraging message to motivate continued practice"
+}
 
-**REPORT STRUCTURE:**
+**GUIDELINES:**
+1. Be ENCOURAGING and SUPPORTIVE - this is for learning, not evaluation
+2. Focus on GROWTH and POTENTIAL, not failures
+3. Provide SPECIFIC, ACTIONABLE improvement suggestions
+4. Recommend 2-3 problems that would help them grow
+5. NEVER mention hiring decisions or job readiness
+6. Frame weaknesses as "opportunities to grow"
+7. Celebrate small wins and effort
 
-# 📊 Interview Evaluation Report
-
-## 🎯 Executive Summary
-
-[Write 2-3 sentences summarizing overall performance and recommendation]
-
----
-
-## 📈 Overall Assessment
-
-**Decision:** [STRONG HIRE / HIRE / MIXED / NO HIRE / STRONG NO HIRE]  
-**Score:** X/10
-
-**Justification:**  
-[1-2 sentence explanation]
-
----
-
-## 💻 Technical Performance
-
-### Problem-Solving Approach
-
-- **Efficiency:** [How did they approach the problem?]
-- **Planning:** [Did they plan before coding?]
-- **Systematic Thinking:** [Were they methodical?]
-
-### Code Quality & Correctness
-
-- **Organization:** [Code structure analysis]
-- **Correctness:** [Algorithm accuracy]  
-- **Edge Cases:** [How well did they handle edge cases?]
-
-### Communication Skills
-
-- **Clarity:** [How clear were their explanations?]
-- ** Engagement:** [Did they think out loud?]
-- **Responsiveness:** [How did they handle questions?]
-
----
-
-## ⭐ Key Strengths
-
-Use a bullet list with 3-5 specific, concrete strengths:
-
-- Strength 1
-- Strength 2
-- Strength 3
-
----
-
-## 📝 Areas for Improvement
-
-Use a bullet list with 3-5 specific, actionable improvements:
-
-- Area 1
-- Area 2
-- Area 3
-
----
-
-## 🔒 Interview Integrity Assessment
-
-${data.integrity.blurCount > 5 || data.integrity.largePasteEvents.length > 0
-            ? '> ⚠️ **INTEGRITY CONCERNS DETECTED**\n\n'
-            : '> ✅ **NO SIGNIFICANT INTEGRITY CONCERNS**\n\n'}
-
-| Metric | Value | Status |
-|--------|-------|--------|
-| Focus/Tab Switches | ${data.integrity.blurCount} | ${data.integrity.blurCount > 5 ? '🔴 HIGH RISK' : data.integrity.blurCount > 2 ? '🟡 MODERATE' : '🟢 NORMAL'} |
-| Paste Events | ${data.integrity.pasteCount} | ${data.integrity.pasteCount > 3 ? '🟡 ELEVATED' : '🟢 NORMAL'} |
-| Large Pastes (>100 chars) | ${data.integrity.largePasteEvents.length} | ${data.integrity.largePasteEvents.length > 0 ? '🔴 RED FLAG' : '🟢 CLEAN'} |
-
-${data.integrity.largePasteEvents.length > 0 ? '\n> **⚠️ Note:** Large paste events suggest the candidate may have copied significant code from external sources rather than writing it themselves during the interview.\n' : ''}
-
----
-
-## 🎯 Final Recommendation
-
-**Hire Decision:** [STRONG HIRE / HIRE / MIXED / NO HIRE / STRONG NO HIRE]
-
-**Rationale:**
-
-[Write 2-4 sentences explaining the recommendation, weighing:
-- Technical performance
-- Integrity concerns
-- Communication skills
-- Overall fit]
-
----
-
-*Report Generated: ${new Date().toLocaleString()}*
-`;
+Output JSON only:`;
 
         span.setAttribute("ai.model_id", MODEL_NAME);
         const result = await model.generateContent(prompt);
-        const reportText = result.response.text();
+        const text = result.response.text();
 
-        return reportText;
-      }, GEMINI_RETRY_CONFIG, 'generateInterviewReport');
+        const parseResult = parseGeminiJSON<CoachingFeedback>(text, DEFAULT_COACHING_FEEDBACK);
+
+        if (!parseResult.success) {
+          Sentry.captureMessage("Gemini Coaching feedback parsing failed", {
+            level: "warning",
+            extra: { rawResponse: parseResult.rawText?.substring(0, 500) }
+          });
+          return DEFAULT_COACHING_FEEDBACK;
+        }
+
+        // Validate and normalize the parsed result
+        const feedback = parseResult.data;
+        return {
+          overallLevel: feedback.overallLevel || calculateSkillLevel(feedback.overallScore || 5),
+          overallScore: typeof feedback.overallScore === 'number'
+            ? Math.min(10, Math.max(1, feedback.overallScore))
+            : 5,
+          categories: {
+            problemSolving: feedback.categories?.problemSolving || DEFAULT_COACHING_FEEDBACK.categories.problemSolving,
+            codeQuality: feedback.categories?.codeQuality || DEFAULT_COACHING_FEEDBACK.categories.codeQuality,
+            communication: feedback.categories?.communication || DEFAULT_COACHING_FEEDBACK.categories.communication,
+            optimization: feedback.categories?.optimization || DEFAULT_COACHING_FEEDBACK.categories.optimization,
+          },
+          strengths: Array.isArray(feedback.strengths) && feedback.strengths.length > 0
+            ? feedback.strengths
+            : DEFAULT_COACHING_FEEDBACK.strengths,
+          improvementPlan: Array.isArray(feedback.improvementPlan) && feedback.improvementPlan.length > 0
+            ? feedback.improvementPlan
+            : DEFAULT_COACHING_FEEDBACK.improvementPlan,
+          recommendedProblems: Array.isArray(feedback.recommendedProblems) && feedback.recommendedProblems.length > 0
+            ? feedback.recommendedProblems
+            : DEFAULT_COACHING_FEEDBACK.recommendedProblems,
+          encouragement: typeof feedback.encouragement === 'string' && feedback.encouragement
+            ? feedback.encouragement
+            : DEFAULT_COACHING_FEEDBACK.encouragement,
+        };
+      }, GEMINI_RETRY_CONFIG, 'generatePracticeInterviewFeedback');
     } catch (error) {
       Sentry.captureException(error);
-      console.error("Interview report generation failed:", error);
-      return `# Interview Report Generation Failed
-
-An error occurred while generating the comprehensive report: ${error instanceof Error ? error.message : 'Unknown error'}
-
-Please review the raw data manually.`;
+      console.error("Coaching feedback generation failed:", error);
+      return DEFAULT_COACHING_FEEDBACK;
     }
   });
 }

@@ -1,31 +1,18 @@
 import { analyzeCodeWithGemini } from '@/lib/gemini';
-import { isValidCode, isValidLanguage, VALID_LANGUAGES, MAX_CODE_SIZE } from '@/lib/validation';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { AnalysisReviewRequestSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { code, language } = body;
 
-    if (!code) {
-      return errorResponse('Code is required', 400, 'MISSING_CODE');
+    // Validate request using Zod schema
+    const validation = validateRequest(AnalysisReviewRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    if (!isValidCode(code)) {
-      return errorResponse(
-        `Invalid code. Must be non-empty and less than ${MAX_CODE_SIZE / 1024}KB`,
-        400,
-        'INVALID_CODE'
-      );
-    }
-
-    if (language && !isValidLanguage(language)) {
-      return errorResponse(
-        `Invalid language. Must be one of: ${VALID_LANGUAGES.join(', ')}`,
-        400,
-        'INVALID_LANGUAGE'
-      );
-    }
+    const { code, language } = validation.data!;
 
     const analysis = await analyzeCodeWithGemini(code, language || 'python');
     return successResponse(analysis);
