@@ -88,6 +88,23 @@ export function InterviewReportDialog({ open, onOpenChange }: InterviewReportDia
       }
 
       setAiReport(data.data.report);
+
+      // Cleanup workspace after successful report generation
+      const workspaceId = useInterviewStore.getState().workspaceId;
+      if (workspaceId) {
+        try {
+          console.log('🗑️ Cleaning up workspace after report generation...');
+          await fetch('/api/sandbox/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspaceId })
+          });
+          console.log('✅ Workspace cleanup complete');
+        } catch (deleteErr) {
+          // Don't fail the report if cleanup fails - just log it
+          console.warn('Failed to cleanup workspace (non-fatal):', deleteErr);
+        }
+      }
     } catch (err) {
       console.error('Failed to generate AI report:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate report');
