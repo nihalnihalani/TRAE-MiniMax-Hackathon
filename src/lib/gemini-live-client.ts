@@ -349,8 +349,8 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
     // Handle Tool Calls
     if (message.toolCall) {
-      console.log("🛠️ Tool Call Received:", message.toolCall.functionCalls?.map((f: any) => f.name));
       const functionCalls = message.toolCall.functionCalls || [];
+      console.log("🛠️ Tool Call Received:", functionCalls.map((f: any) => ({ name: f.name, id: f.id })));
 
       try {
         // Execute tools with timeout
@@ -361,19 +361,24 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
           )
         ]);
 
-        // Send Tool Response
+        // Send Tool Response with function call IDs (required by Gemini)
         const toolResponse = {
           toolResponse: {
-            functionResponses: responses
+            functionResponses: responses.map((r: any) => ({
+              id: r.id, // Include the function call ID from Gemini
+              name: r.name,
+              response: r.response
+            }))
           }
         };
 
-        console.log("📤 Sending tool responses:", responses.map(r => r.name));
+        console.log("📤 Sending tool responses:", toolResponse.toolResponse.functionResponses.map((r: any) => ({ name: r.name, id: r.id })));
         this.ws?.send(JSON.stringify(toolResponse));
       } catch (error) {
         console.error("❌ Tool execution failed:", error);
-        // Send error response for all tools
+        // Send error response for all tools with their IDs
         const errorResponses = functionCalls.map((call: any) => ({
+          id: call.id,
           name: call.name,
           response: { error: `Tool execution failed: ${error}` }
         }));

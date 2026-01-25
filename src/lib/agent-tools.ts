@@ -45,9 +45,16 @@ function isCompanyProblem(problem: Problem | CompanyProblem): problem is Company
 
 export const getAgentTools = (workspaceId: string | null) => ({
     read_candidate_code: wrapTool('read_candidate_code', async () => {
-        console.log("Agent requested code read");
-        const currentCode = useInterviewStore.getState().code;
-        if (!currentCode) return "No code written yet.";
+        const store = useInterviewStore.getState();
+        const currentCode = store.code;
+
+        console.log("📝 read_candidate_code called");
+        console.log("📝 Code length:", currentCode?.length || 0);
+        console.log("📝 Code preview:", currentCode ? currentCode.substring(0, 100) + "..." : "(empty)");
+
+        if (!currentCode || currentCode.trim() === '') {
+            return "The code editor is empty. The candidate hasn't written any code yet.";
+        }
 
         // Truncate if too long to avoid token limits/connection drops
         if (currentCode.length > 20000) {
@@ -86,11 +93,18 @@ export const getAgentTools = (workspaceId: string | null) => ({
     }),
 
     run_code: wrapTool('run_code', async () => {
-        console.log("Agent requested code execution");
-        const workspaceId = useInterviewStore.getState().workspaceId;
-        if (!workspaceId) return "No active workspace.";
-
         const store = useInterviewStore.getState();
+        const workspaceId = store.workspaceId;
+
+        console.log("🚀 run_code called");
+        console.log("🚀 Workspace ID:", workspaceId || "(none)");
+        console.log("🚀 Code length:", store.code?.length || 0);
+        console.log("🚀 Language:", store.language);
+
+        if (!workspaceId) {
+            return "No active sandbox workspace. Please wait for the sandbox to initialize.";
+        }
+
         const code = store.code;
         const language = store.language;
         const currentProblemId = store.currentProblemId;

@@ -6,7 +6,7 @@ import { StatusIndicator } from './StatusIndicator';
 import { Visualizer } from './Visualizer';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { Mic, MicOff, Wand2, GraduationCap } from 'lucide-react';
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { getAgentTools } from '@/lib/agent-tools';
 import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
 import { GeminiLiveClient, ConnectionStatus, InterviewMode, ProblemContext } from '@/lib/gemini-live-client';
@@ -27,44 +27,55 @@ export function InterviewAgent() {
     const [wasInterrupted, setWasInterrupted] = useState(false);
     const clientRef = useRef<GeminiLiveClient | null>(null);
 
-    // Tools for Gemini
-    const toolFunctions = useMemo(() => getAgentTools(workspaceId), [workspaceId]);
+    // Tool handler - always gets fresh state to avoid closure issues
+    const handleToolsCall = useCallback(async (functionCalls: any[]) => {
+        console.log("🛠️ Handling Tool Calls:", functionCalls.map((c: any) => c.name));
 
-    const handleToolsCall = async (functionCalls: any[]) => {
-        console.log("🛠️ Handling Tool Calls:", functionCalls);
+        // Get fresh tools with current workspaceId from store
+        const currentWorkspaceId = useInterviewStore.getState().workspaceId;
+        const toolFunctions = getAgentTools(currentWorkspaceId);
+
         const responses = [];
-        
+
         for (const call of functionCalls) {
             const name = call.name;
-            const args = call.args;
+            const args = call.args || {};
+            const id = call.id; // Gemini function call ID
             const fn = (toolFunctions as any)[name];
-            
+
+            console.log(`🔧 Executing tool: ${name}`, { id, args });
+
             if (fn) {
                 setIsThinking(true);
                 setCurrentAction(`Running ${name}...`);
                 try {
                     const result = await fn(args);
+                    console.log(`✅ Tool ${name} result:`, typeof result === 'string' ? result.substring(0, 200) : result);
                     responses.push({
+                        id: id, // Include the function call ID
                         name: name,
-                        response: { result: result } 
+                        response: { result: result }
                     });
                 } catch (err) {
+                    console.error(`❌ Tool ${name} error:`, err);
                     responses.push({
+                        id: id,
                         name: name,
                         response: { error: String(err) }
                     });
                 }
                 setIsThinking(false);
             } else {
-                console.warn(`Tool ${name} not found`);
+                console.warn(`⚠️ Tool ${name} not found in toolFunctions`);
                 responses.push({
+                    id: id,
                     name: name,
-                    response: { error: "Tool not found" }
+                    response: { error: `Tool ${name} not found` }
                 });
             }
         }
         return responses;
-    };
+    }, []); // Empty deps - always get fresh state from store
 
     // Initialize Client
     useEffect(() => {
