@@ -23,10 +23,11 @@ export const MAX_HINTS = 3;
 export const DEFAULT_EXECUTION_TIMEOUT = 30000;
 export const DEFAULT_CREATE_TIMEOUT = 60; // seconds
 
-// Daytona Configuration
-export const DEFAULT_AUTO_STOP_INTERVAL = 30; // minutes
-export const DEFAULT_AUTO_ARCHIVE_INTERVAL = 60; // minutes
+// Daytona Configuration - Optimized for disk limit management
+export const DEFAULT_AUTO_STOP_INTERVAL = 5; // minutes - stop quickly when idle
+export const DEFAULT_AUTO_ARCHIVE_INTERVAL = 10; // minutes - archive quickly to free disk
 export const DEFAULT_NETWORK_ALLOW_LIST = ''; // Empty = allow all
+export const MAX_WORKSPACE_AGE_MS = 30 * 60 * 1000; // 30 minutes max workspace lifetime
 
 // Retry Configuration
 export const DEFAULT_RETRY_CONFIG = {

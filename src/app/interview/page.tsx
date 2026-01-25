@@ -24,6 +24,7 @@ import { Shield, AlertTriangle, GraduationCap } from "lucide-react";
 import { PROBLEMS } from "@/data/problems";
 import { COMPANIES } from "@/data/company-problems";
 import { generateTestCode } from "@/lib/test-runner";
+import Link from "next/link";
 
 export default function InterviewPage() {
   const {
@@ -137,8 +138,46 @@ export default function InterviewPage() {
     }
   };
 
+  // Cleanup workspace on page unload/navigation
+  const cleanupWorkspace = async (wsId: string) => {
+    try {
+      console.log('🗑️ Cleaning up workspace on page leave:', wsId);
+      await fetch('/api/sandbox/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: wsId }),
+        keepalive: true, // Ensures request completes even if page unloads
+      });
+      console.log('✅ Workspace cleanup complete');
+    } catch (err) {
+      console.warn('Failed to cleanup workspace:', err);
+    }
+  };
+
   useEffect(() => {
     initWorkspace();
+
+    // Cleanup on page unload (browser close, tab close, navigation away)
+    const handleBeforeUnload = () => {
+      const wsId = useInterviewStore.getState().workspaceId;
+      if (wsId) {
+        // Use sendBeacon for reliable cleanup on page unload
+        const data = JSON.stringify({ workspaceId: wsId });
+        navigator.sendBeacon('/api/sandbox/delete', new Blob([data], { type: 'application/json' }));
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup on component unmount (React navigation)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      const wsId = useInterviewStore.getState().workspaceId;
+      if (wsId) {
+        cleanupWorkspace(wsId);
+        setWorkspaceId(null);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once
 
@@ -315,10 +354,10 @@ export default function InterviewPage() {
   return (
     <div id="interface-container" className="h-screen w-full bg-background overflow-hidden flex flex-col">
       <header className="h-12 border-b flex items-center px-4 justify-between bg-card z-10">
-        <div className="font-bold flex items-center gap-2">
+        <Link href="/" className="font-bold flex items-center gap-2 hover:opacity-80 transition-opacity">
           <Logo size={24} />
           Daytona Interview Sandbox
-        </div>
+        </Link>
         <div className="text-xs text-muted-foreground flex items-center gap-4">
           {interviewMode === 'practice' && (
             <span className="text-primary flex items-center gap-1 bg-primary/10 px-2 py-1 rounded">

@@ -3,7 +3,23 @@ import { daytonaService } from '@/lib/daytona';
 
 export async function POST(req: NextRequest) {
     try {
-        const { workspaceId } = await req.json();
+        // Handle both JSON and sendBeacon (text/plain with JSON body) requests
+        const contentType = req.headers.get('content-type') || '';
+        let body: { workspaceId?: string };
+
+        if (contentType.includes('application/json')) {
+            body = await req.json();
+        } else {
+            // sendBeacon sends as text/plain or application/x-www-form-urlencoded
+            const text = await req.text();
+            try {
+                body = JSON.parse(text);
+            } catch {
+                body = {};
+            }
+        }
+
+        const { workspaceId } = body;
 
         if (!workspaceId) {
             return NextResponse.json(
