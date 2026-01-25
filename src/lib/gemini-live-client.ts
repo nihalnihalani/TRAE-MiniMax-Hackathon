@@ -11,9 +11,8 @@
 import { INTERVIEW_TOOLS } from "./gemini-tools";
 import { getSystemInstruction } from "./interviewer-prompt";
 
-// Constants
-const SAMPLE_RATE = 16000; // Native audio model uses 16kHz input
-const OUTPUT_SAMPLE_RATE = 24000; // Output is 24kHz
+// Constants - Use 24kHz for both input and output for better quality
+const SAMPLE_RATE = 24000; // 24kHz for high quality audio
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
@@ -377,14 +376,14 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
   private async startAudioInput() {
     try {
-      // Get microphone access FIRST before creating AudioContext
+      // Get microphone access with enhanced audio processing
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: SAMPLE_RATE,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          sampleRate: { ideal: SAMPLE_RATE },
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
         },
       });
 
@@ -394,32 +393,42 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
         throw new Error("AudioContext not supported in this browser");
       }
 
-      // Input context at 16kHz (native audio model preference)
+      // Single AudioContext at 24kHz for both input and output
       this.audioContext = new AudioContextClass({
         sampleRate: SAMPLE_RATE,
+        latencyHint: 'interactive', // Optimize for low latency
       });
 
-      // Output context at 24kHz
-      this.outputAudioContext = new AudioContextClass({
-        sampleRate: OUTPUT_SAMPLE_RATE,
-      });
+      // Use same context for output
+      this.outputAudioContext = this.audioContext;
 
-      // Resume audio contexts if suspended (browser autoplay policy)
+      // Resume audio context if suspended (browser autoplay policy)
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }
-      if (this.outputAudioContext.state === 'suspended') {
-        await this.outputAudioContext.resume();
-      }
 
       if (!this.audioContext) {
-        throw new Error("Failed to create input AudioContext");
+        throw new Error("Failed to create AudioContext");
       }
 
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-      // Use ScriptProcessor (works reliably across browsers)
-      const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      // Add a high-pass filter to remove low frequency noise/rumble
+      const highPassFilter = this.audioContext.createBiquadFilter();
+      highPassFilter.type = 'highpass';
+      highPassFilter.frequency.value = 80; // Cut frequencies below 80Hz
+
+      // Add a low-pass filter to remove high frequency noise
+      const lowPassFilter = this.audioContext.createBiquadFilter();
+      lowPassFilter.type = 'lowpass';
+      lowPassFilter.frequency.value = 8000; // Cut frequencies above 8kHz for voice
+
+      // Connect filters: source -> highpass -> lowpass -> processor
+      source.connect(highPassFilter);
+      highPassFilter.connect(lowPassFilter);
+
+      // Use ScriptProcessor with smaller buffer for lower latency
+      const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
 
       processor.onaudioprocess = (e) => {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
@@ -456,14 +465,17 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
         this.ws.send(JSON.stringify(realtimeInput));
       };
 
-      source.connect(processor);
+      // Connect filter output to processor
+      lowPassFilter.connect(processor);
       processor.connect(this.audioContext.destination);
 
-      // Store references
+      // Store references for cleanup
       (this as any).processor = processor;
       (this as any).source = source;
+      (this as any).highPassFilter = highPassFilter;
+      (this as any).lowPassFilter = lowPassFilter;
 
-      console.log("🎤 Microphone active at", SAMPLE_RATE, "Hz");
+      console.log("🎤 Microphone active at", SAMPLE_RATE, "Hz with noise filtering");
 
     } catch (err: any) {
       console.error("Audio Input Error:", err);
@@ -493,10 +505,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     if (this.audioContext) {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;
-    }
-    if (this.outputAudioContext) {
-      this.outputAudioContext.close().catch(() => {});
-      this.outputAudioContext = null;
+      this.outputAudioContext = null; // Same context, just clear reference
     }
     this.clearAudioQueue();
   }
@@ -523,7 +532,7 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     this.isPlaying = true;
     const chunk = this.audioQueue.shift()!;
 
-    const buffer = ctx.createBuffer(1, chunk.length, OUTPUT_SAMPLE_RATE);
+    const buffer = ctx.createBuffer(1, chunk.length, SAMPLE_RATE);
     buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
 
     // Calculate output volume
