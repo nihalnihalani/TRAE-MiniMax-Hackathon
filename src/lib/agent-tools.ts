@@ -15,15 +15,22 @@ const wrapTool = (name: string, fn: Function) => async (...args: any[]) => {
     }
 };
 
-export const getAgentTools = (workspaceId: string | null) => ({
+export const getAgentTools = (_unused: string | null) => ({
     read_candidate_code: wrapTool('read_candidate_code', async () => {
         console.log("Agent requested code read");
         const currentCode = useInterviewStore.getState().code;
-        return currentCode || "No code written yet.";
+        if (!currentCode) return "No code written yet.";
+
+        // Truncate if too long to avoid token limits/connection drops
+        if (currentCode.length > 20000) {
+            return currentCode.substring(0, 20000) + "\n...[Code truncated due to length]...";
+        }
+        return currentCode;
     }),
 
     read_sandbox_file: wrapTool('read_sandbox_file', async ({ path }: { path: string }) => {
         console.log("Agent requested file read:", path);
+        const workspaceId = useInterviewStore.getState().workspaceId;
         if (!workspaceId) return "No active workspace.";
 
         const response = await fetch('/api/sandbox/read', {
@@ -38,6 +45,7 @@ export const getAgentTools = (workspaceId: string | null) => ({
 
     run_coderabbit_analysis: wrapTool('run_coderabbit_analysis', async () => {
         console.log("Agent requested CodeRabbit analysis");
+        const workspaceId = useInterviewStore.getState().workspaceId;
         if (!workspaceId) return "No active workspace.";
 
         const response = await fetch('/api/analysis/coderabbit', {
@@ -51,6 +59,7 @@ export const getAgentTools = (workspaceId: string | null) => ({
 
     run_code: wrapTool('run_code', async () => {
         console.log("Agent requested code execution");
+        const workspaceId = useInterviewStore.getState().workspaceId;
         if (!workspaceId) return "No active workspace.";
 
         const store = useInterviewStore.getState();
@@ -100,12 +109,16 @@ export const getAgentTools = (workspaceId: string | null) => ({
             store.addLog(result.stderr, 'stderr');
         }
 
-        // Return formatted test results to the agent
-        return `Exit Code: ${result.isError ? 1 : 0}\nStdout: ${result.stdout}\nStderr: ${result.stderr}`;
+        // Return formatted test results to the agent (truncated to avoid connection drops)
+        const stdoutTrunc = result.stdout.length > 5000 ? result.stdout.substring(0, 5000) + "...[truncated]" : result.stdout;
+        const stderrTrunc = result.stderr.length > 5000 ? result.stderr.substring(0, 5000) + "...[truncated]" : result.stderr;
+
+        return `Exit Code: ${result.isError ? 1 : 0}\nStdout: ${stdoutTrunc}\nStderr: ${stderrTrunc}`;
     }),
 
     install_dependency: wrapTool('install_dependency', async ({ packageName, manager }: { packageName: string, manager: string }) => {
         console.log(`Agent requested install: ${packageName} via ${manager}`);
+        const workspaceId = useInterviewStore.getState().workspaceId;
         if (!workspaceId) return "No active workspace.";
 
         const response = await fetch('/api/sandbox/install', {
@@ -123,6 +136,7 @@ export const getAgentTools = (workspaceId: string | null) => ({
 
     run_hidden_test: wrapTool('run_hidden_test', async ({ testCode }: { testCode: string }) => {
         console.log("Agent requested hidden test execution");
+        const workspaceId = useInterviewStore.getState().workspaceId;
         if (!workspaceId) return "No active workspace.";
 
         const response = await fetch('/api/sandbox/test', {
