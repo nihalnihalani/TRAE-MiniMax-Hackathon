@@ -10,13 +10,7 @@ import { Mic, MicOff, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { agentReasoning } from '@/lib/agent-reasoning';
 import { getAgentTools } from '@/lib/agent-tools';
-
-const WIZARD_SCRIPT = [
-    "Hi there! I'm Alex. Today we're going to work on reversing a linked list. Can you start by defining the Node class?",
-    "Great start. Now, how would you handle the prev pointer in the reversal function?",
-    "Hmm, take a look at line 15. Are we updating the head reference correctly?",
-    "Excellent work. You nailed the pointer manipulation."
-];
+import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
 
 export function InterviewAgent() {
     const { code, isWizardMode, workspaceId } = useInterviewStore();
@@ -39,7 +33,7 @@ export function InterviewAgent() {
     // Keyboard shortcut for Wizard Mode Next Line
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+            if (e.ctrlKey === WIZARD_SHORTCUT.ctrl && e.shiftKey === WIZARD_SHORTCUT.shift && e.key === WIZARD_SHORTCUT.key) {
                 if (isWizardMode) {
                     triggerWizardLine();
                 }
@@ -90,8 +84,8 @@ export function InterviewAgent() {
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // @ts-ignore
-            await startSession({
+            // ElevenLabs SDK session options - using type assertion via unknown
+            await (startSession as unknown as (options: Record<string, unknown>) => Promise<void>)({
                 agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "replace-with-agent-id",
                 overrides: {
                     agent: {
@@ -116,7 +110,7 @@ export function InterviewAgent() {
     };
 
     return (
-        <div className="flex flex-col gap-4">
+        <div id="agent-container" className="flex flex-col gap-4">
             {/* Thinking Indicator */}
             {isThinking && (
                 <ThinkingIndicator isThinking={isThinking} currentAction={currentAction} />
@@ -134,9 +128,14 @@ export function InterviewAgent() {
                         <MicOff className="w-4 h-4" />
                     </Button>
                 ) : (
-                    <Button variant="default" onClick={handleStart} disabled={status === 'connecting'}>
+                    <Button
+                        variant="default"
+                        onClick={handleStart}
+                        disabled={status === 'connecting' || !workspaceId}
+                        title={!workspaceId ? "Waiting for workspace..." : undefined}
+                    >
                         <Mic className="w-4 h-4 mr-2" />
-                        Start Interview
+                        {!workspaceId ? "Initializing..." : "Start Interview"}
                     </Button>
                 )}
             </div>

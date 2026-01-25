@@ -36,8 +36,7 @@ export default function InterviewPage() {
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
-  const [showReport, setShowReport] = useState(false); // New state
-
+  const [showReport, setShowReport] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
@@ -197,7 +196,7 @@ export default function InterviewPage() {
   if (!mounted) return null;
 
   return (
-    <div className="h-screen w-full bg-background overflow-hidden flex flex-col">
+    <div id="interface-container" className="h-screen w-full bg-background overflow-hidden flex flex-col">
        <header className="h-12 border-b flex items-center px-4 justify-between bg-card z-10">
           <div className="font-bold flex items-center gap-2">
             <Logo size={24} />

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
 import { daytonaService } from '@/lib/daytona';
+import { isValidWorkspaceId, isValidPath } from '@/lib/validation';
+import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 
 export async function POST(request: Request) {
   try {
@@ -7,13 +8,24 @@ export async function POST(request: Request) {
     const { workspaceId, path } = body;
 
     if (!workspaceId || !path) {
-      return NextResponse.json({ error: 'Workspace ID and path are required' }, { status: 400 });
+      return errorResponse('Workspace ID and path are required', 400, 'MISSING_PARAMS');
+    }
+
+    if (!isValidWorkspaceId(workspaceId)) {
+      return errorResponse('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
+    }
+
+    if (!isValidPath(path)) {
+      return errorResponse(
+        'Invalid path. Path must not contain directory traversal sequences',
+        400,
+        'INVALID_PATH'
+      );
     }
 
     const content = await daytonaService.readFile(workspaceId, path);
-    return NextResponse.json({ content });
+    return successResponse({ content });
   } catch (error) {
-    console.error('API Read File Error:', error);
-    return NextResponse.json({ error: 'Failed to read file' }, { status: 500 });
+    return handleApiError(error, 'API Read File Error');
   }
 }
