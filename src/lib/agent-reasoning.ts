@@ -1,9 +1,13 @@
+import { Mutex } from 'async-mutex';
 import { analyzeCodeWithGemini } from './gemini';
 import { COMPLEXITY_HIGH, COMPLEXITY_MEDIUM, MAX_HINTS } from './constants';
 
 /**
  * Advanced Agent Reasoning System
  * Provides multi-step decision making and autonomous actions for the interview agent
+ *
+ * Thread Safety: Uses async-mutex to protect candidateProfile from race conditions
+ * when multiple concurrent calls to analyzeAndAct() or updateProfile() occur.
  */
 
 export interface AgentAction {
@@ -46,8 +50,12 @@ export class AgentReasoning {
         needsEncouragement: false,
     };
 
+    // Mutex to protect candidateProfile from concurrent modifications
+    private profileMutex = new Mutex();
+
     /**
      * Analyze code and determine next actions
+     * Thread-safe: Uses mutex to protect profile reads/writes
      */
     async analyzeAndAct(code: string, language: string = 'python'): Promise<AgentAction[]> {
         const analysis = await this.deepAnalysis(code, language);
@@ -98,16 +106,25 @@ export class AgentReasoning {
             return actions;
         }
 
-        // Priority 4: Complexity optimization
-        if (analysis.complexityScore > (COMPLEXITY_HIGH - 1) && this.candidateProfile.hintsGiven < MAX_HINTS) {
-            const hint = this.generateComplexityHint(analysis);
-            actions.push({
-                type: 'hint',
-                level: 'subtle',
-                content: hint,
+        // Priority 4: Complexity optimization (protected by mutex)
+        if (analysis.complexityScore > (COMPLEXITY_HIGH - 1)) {
+            const shouldGiveHint = await this.profileMutex.runExclusive(async () => {
+                if (this.candidateProfile.hintsGiven < MAX_HINTS) {
+                    this.candidateProfile.hintsGiven++;
+                    return true;
+                }
+                return false;
             });
-            this.candidateProfile.hintsGiven++;
-            return actions;
+
+            if (shouldGiveHint) {
+                const hint = this.generateComplexityHint(analysis);
+                actions.push({
+                    type: 'hint',
+                    level: 'subtle',
+                    content: hint,
+                });
+                return actions;
+            }
         }
 
         // Priority 5: Edge case handling
@@ -165,10 +182,10 @@ export class AgentReasoning {
         try {
             // Use Gemini for deep semantic analysis
             const aiResult = await analyzeCodeWithGemini(code, language);
-            
+
             // Map AI result to our internal structure
             analysis.complexityScore = aiResult.score ? (10 - aiResult.score) * 2 : 0; // Inverse score mapping
-            
+
             // Heuristic for missing dependencies (Gemini might miss specific import checks)
             const importMatches = code.match(/import\s+(\w+)|from\s+(\w+)\s+import/g);
             const commonPackages = ['numpy', 'pandas', 'requests', 'flask', 'django', 'matplotlib', 'scipy'];
@@ -293,7 +310,7 @@ for i, (input_val, expected) in enumerate(test_cases):
     private detectPackageManager(code: string, language: string): 'pip' | 'npm' {
         if (language === 'typescript' || language === 'javascript') return 'npm';
         if (language === 'python') return 'pip';
-        
+
         // Fallback heuristics
         if (code.includes('import ') || code.includes('from ')) return 'pip';
         if (code.includes('require(') || code.includes('import {')) return 'npm';
@@ -302,63 +319,96 @@ for i, (input_val, expected) in enumerate(test_cases):
 
     /**
      * Update candidate profile based on performance
+     * Thread-safe: Uses mutex to protect profile modifications
      */
-    updateProfile(event: {
+    async updateProfile(event: {
         type: 'hint_given' | 'problem_solved' | 'struggled' | 'excelled';
         context?: string;
-    }) {
-        switch (event.type) {
-            case 'hint_given':
-                this.candidateProfile.hintsGiven++;
-                break;
-            case 'problem_solved':
-                this.candidateProfile.problemsSolved++;
-                break;
-            case 'struggled':
-                this.candidateProfile.needsEncouragement = true;
-                if (event.context) {
-                    this.candidateProfile.weaknesses.push(event.context);
-                }
-                break;
-            case 'excelled':
-                if (event.context) {
-                    this.candidateProfile.strengths.push(event.context);
-                }
-                break;
-        }
+    }): Promise<void> {
+        await this.profileMutex.runExclusive(async () => {
+            switch (event.type) {
+                case 'hint_given':
+                    this.candidateProfile.hintsGiven++;
+                    break;
+                case 'problem_solved':
+                    this.candidateProfile.problemsSolved++;
+                    break;
+                case 'struggled':
+                    this.candidateProfile.needsEncouragement = true;
+                    if (event.context) {
+                        this.candidateProfile.weaknesses.push(event.context);
+                    }
+                    break;
+                case 'excelled':
+                    if (event.context) {
+                        this.candidateProfile.strengths.push(event.context);
+                    }
+                    break;
+            }
+        });
     }
 
     /**
      * Get candidate evaluation summary
+     * Thread-safe: Uses mutex to protect profile reads
      */
-    getEvaluation(): string {
-        const { strengths, weaknesses, hintsGiven, problemsSolved } = this.candidateProfile;
+    async getEvaluation(): Promise<string> {
+        return await this.profileMutex.runExclusive(async () => {
+            const { strengths, weaknesses, hintsGiven, problemsSolved } = this.candidateProfile;
 
-        let evaluation = `Candidate Performance Summary:\n\n`;
-        evaluation += `Problems Solved: ${problemsSolved}\n`;
-        evaluation += `Hints Required: ${hintsGiven}\n\n`;
+            let evaluation = `Candidate Performance Summary:\n\n`;
+            evaluation += `Problems Solved: ${problemsSolved}\n`;
+            evaluation += `Hints Required: ${hintsGiven}\n\n`;
 
-        if (strengths.length > 0) {
-            evaluation += `Strengths:\n${strengths.map(s => `- ${s}`).join('\n')}\n\n`;
-        }
+            if (strengths.length > 0) {
+                evaluation += `Strengths:\n${strengths.map(s => `- ${s}`).join('\n')}\n\n`;
+            }
 
-        if (weaknesses.length > 0) {
-            evaluation += `Areas for Improvement:\n${weaknesses.map(w => `- ${w}`).join('\n')}\n\n`;
-        }
+            if (weaknesses.length > 0) {
+                evaluation += `Areas for Improvement:\n${weaknesses.map(w => `- ${w}`).join('\n')}\n\n`;
+            }
 
-        // Overall recommendation
-        const score = (problemsSolved * 10) - (hintsGiven * 2);
-        if (score >= 8) {
-            evaluation += `Recommendation: STRONG HIRE - Excellent problem-solving skills with minimal guidance needed.`;
-        } else if (score >= 5) {
-            evaluation += `Recommendation: HIRE - Solid performance with good potential.`;
-        } else if (score >= 3) {
-            evaluation += `Recommendation: MAYBE - Shows promise but needs more development.`;
-        } else {
-            evaluation += `Recommendation: NO HIRE - Struggled significantly with basic concepts.`;
-        }
+            // Overall recommendation
+            const score = (problemsSolved * 10) - (hintsGiven * 2);
+            if (score >= 8) {
+                evaluation += `Recommendation: STRONG HIRE - Excellent problem-solving skills with minimal guidance needed.`;
+            } else if (score >= 5) {
+                evaluation += `Recommendation: HIRE - Solid performance with good potential.`;
+            } else if (score >= 3) {
+                evaluation += `Recommendation: MAYBE - Shows promise but needs more development.`;
+            } else {
+                evaluation += `Recommendation: NO HIRE - Struggled significantly with basic concepts.`;
+            }
 
-        return evaluation;
+            return evaluation;
+        });
+    }
+
+    /**
+     * Reset candidate profile (for testing or new sessions)
+     * Thread-safe: Uses mutex to protect profile modifications
+     */
+    async resetProfile(): Promise<void> {
+        await this.profileMutex.runExclusive(async () => {
+            this.candidateProfile = {
+                strengths: [],
+                weaknesses: [],
+                hintsGiven: 0,
+                problemsSolved: 0,
+                averageTimeToSolve: 0,
+                needsEncouragement: false,
+            };
+        });
+    }
+
+    /**
+     * Get current hints count (for UI display)
+     * Thread-safe: Uses mutex to protect profile reads
+     */
+    async getHintsGiven(): Promise<number> {
+        return await this.profileMutex.runExclusive(async () => {
+            return this.candidateProfile.hintsGiven;
+        });
     }
 }
 

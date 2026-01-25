@@ -36,6 +36,14 @@ export const DEFAULT_RETRY_CONFIG = {
   backoffMultiplier: 2,
 } as const;
 
+// Gemini AI Retry Configuration
+export const GEMINI_RETRY_CONFIG = {
+  maxAttempts: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 8000,
+  backoffMultiplier: 2,
+} as const;
+
 // CodeRabbit CLI Configuration
 export const CODERABBIT_INSTALL_CMD = 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh';
 export const CODERABBIT_INSTALL_TIMEOUT = 60000; // 60 seconds
