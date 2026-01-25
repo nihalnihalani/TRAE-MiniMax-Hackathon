@@ -185,6 +185,40 @@ export class GeminiLiveClient {
   }
 
   /**
+   * Send code context update to Gemini (so it can see what the candidate is typing)
+   * This sends the code as a system context message, not requiring a response
+   */
+  sendCodeContext(code: string, silent: boolean = true) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Truncate if too long
+    const truncatedCode = code.length > 10000
+      ? code.substring(0, 10000) + "\n... [code truncated]"
+      : code;
+
+    const contextMessage = silent
+      ? `[CONTEXT UPDATE - Candidate's current code in editor]\n\`\`\`\n${truncatedCode}\n\`\`\`\n[End of code - React naturally. If they seem stuck, offer guidance. If they're making progress, encourage them. Don't repeat back the entire code.]`
+      : `Here's my current code:\n\`\`\`\n${truncatedCode}\n\`\`\``;
+
+    const clientContent = {
+      clientContent: {
+        turns: [
+          {
+            role: "user",
+            parts: [{ text: contextMessage }]
+          }
+        ],
+        turnComplete: true
+      }
+    };
+
+    console.log("📝 Sending code context to Gemini (length:", code.length, ")");
+    this.ws.send(JSON.stringify(clientContent));
+  }
+
+  /**
    * Check if the client is connected
    */
   isConnected(): boolean {

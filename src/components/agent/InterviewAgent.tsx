@@ -137,6 +137,55 @@ export function InterviewAgent() {
         };
     }, [workspaceId, interviewMode]); // Re-init if workspace or interview mode changes
 
+    // Track previous code to detect meaningful changes
+    const previousCodeRef = useRef<string>('');
+    const codeUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastCodeUpdateRef = useRef<number>(0);
+
+    // Send code updates to Gemini when candidate types (with debouncing)
+    useEffect(() => {
+        // Only send if connected and code has meaningfully changed
+        if (!clientRef.current?.isConnected() || status !== 'connected') {
+            return;
+        }
+
+        const currentCode = code || '';
+        const previousCode = previousCodeRef.current;
+
+        // Calculate if change is significant (more than just a character or two)
+        const codeLengthDiff = Math.abs(currentCode.length - previousCode.length);
+        const isSignificantChange = codeLengthDiff > 20 ||
+            (currentCode.length > 0 && previousCode.length === 0) ||
+            currentCode.includes('\n') !== previousCode.includes('\n');
+
+        // Don't send too frequently (minimum 5 seconds between updates)
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastCodeUpdateRef.current;
+
+        if (isSignificantChange && timeSinceLastUpdate > 5000) {
+            // Clear any pending timeout
+            if (codeUpdateTimeoutRef.current) {
+                clearTimeout(codeUpdateTimeoutRef.current);
+            }
+
+            // Debounce: wait 2 seconds after typing stops before sending
+            codeUpdateTimeoutRef.current = setTimeout(() => {
+                if (clientRef.current?.isConnected() && currentCode.trim()) {
+                    console.log("📝 Sending code update to Gemini (debounced)");
+                    clientRef.current.sendCodeContext(currentCode, true);
+                    lastCodeUpdateRef.current = Date.now();
+                    previousCodeRef.current = currentCode;
+                }
+            }, 2000);
+        }
+
+        return () => {
+            if (codeUpdateTimeoutRef.current) {
+                clearTimeout(codeUpdateTimeoutRef.current);
+            }
+        };
+    }, [code, status]);
+
     // Helper to get current problem context for Gemini
     const getCurrentProblemContext = (): ProblemContext | null => {
         if (!currentProblemId) return null;
