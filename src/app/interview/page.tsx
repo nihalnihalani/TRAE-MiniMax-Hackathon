@@ -332,7 +332,7 @@ export default function InterviewPage() {
           <ResizableHandle />
 
           {/* Right Panel: Agent & Controls */}
-          <ResizablePanel defaultSize={25} minSize={20} className="bg-card border-l">
+          <ResizablePanel defaultSize={35} minSize={20} className="bg-card border-l">
             <div className="flex flex-col h-full overflow-hidden">
               <div className="p-4 border-b">
                 <InterviewAgent />
