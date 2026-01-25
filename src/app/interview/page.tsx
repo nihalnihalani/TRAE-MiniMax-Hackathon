@@ -309,10 +309,11 @@ export default function InterviewPage() {
 
           <ResizableHandle />
 
-          {/* Center Panel: Editor & Console */}
+          {/* Center Panel: Editor (top) & Console (bottom) */}
           <ResizablePanel defaultSize={50} minSize={30}>
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={70}>
+            <div className="flex flex-col h-full">
+              {/* Code Editor - Top 70% */}
+              <div className="flex-[7] min-h-0 overflow-hidden">
                 <CodeEditor
                   language="python"
                   initialCode={code}
@@ -320,12 +321,12 @@ export default function InterviewPage() {
                   onRun={() => handleRun(code)}
                   isRunning={isRunning}
                 />
-              </ResizablePanel>
-              <ResizableHandle />
-              <ResizablePanel defaultSize={30} minSize={10}>
+              </div>
+              {/* Console Panel - Bottom 30% */}
+              <div className="flex-[3] min-h-0 overflow-hidden">
                 <ConsolePanel output={consoleOutput} />
-              </ResizablePanel>
-            </ResizablePanelGroup>
+              </div>
+            </div>
           </ResizablePanel>
 
           <ResizableHandle />

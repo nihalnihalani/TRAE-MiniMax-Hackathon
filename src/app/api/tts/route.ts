@@ -1,32 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidTTSText, MAX_TTS_LENGTH } from '@/lib/validation';
 import { errorResponse, handleApiError } from '@/lib/api-utils';
 import { DEFAULT_VOICE_ID } from '@/lib/constants';
+import { TTSRequestSchema, validateRequest } from '@/lib/schemas';
 
 export async function POST(req: NextRequest) {
   try {
-    const { text } = await req.json();
+    const body = await req.json();
 
-    if (!text) {
-      return errorResponse('Text is required', 400, 'MISSING_TEXT');
+    // Validate request using Zod schema
+    const validation = validateRequest(TTSRequestSchema, body);
+    if (!validation.success) {
+      return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    if (!isValidTTSText(text)) {
-      return errorResponse(
-        `Invalid text. Must be non-empty and no more than ${MAX_TTS_LENGTH} characters`,
-        400,
-        'INVALID_TEXT'
-      );
-    }
+    const { text, voiceId } = validation.data!;
 
-    const voiceId = DEFAULT_VOICE_ID;
+    const selectedVoiceId = voiceId || DEFAULT_VOICE_ID;
     const apiKey = process.env.ELEVENLABS_API_KEY;
 
     if (!apiKey) {
       return errorResponse('API key not configured', 500, 'MISSING_API_KEY');
     }
 
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -44,7 +40,15 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return errorResponse(errorText, response.status, 'TTS_API_ERROR');
+      // Parse error text if it's JSON to get a cleaner message
+      let errorMessage = errorText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail?.message || errorJson.message || errorText;
+      } catch {
+        // Keep original error text if not JSON
+      }
+      return errorResponse(errorMessage, response.status, 'TTS_API_ERROR');
     }
 
     const audioBuffer = await response.arrayBuffer();

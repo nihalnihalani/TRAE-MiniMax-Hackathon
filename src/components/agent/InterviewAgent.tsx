@@ -137,7 +137,11 @@ export function InterviewAgent() {
     };
 
     const handleStop = async () => {
-        await endSession();
+        try {
+            await endSession();
+        } catch (err) {
+            console.error("Failed to end session:", err);
+        }
     };
 
     return (
@@ -150,7 +154,7 @@ export function InterviewAgent() {
             <div className="flex items-center gap-4 p-4 border rounded-xl bg-card">
                 <StatusIndicator status={status} />
 
-                <div className="flex-1 w-full min-w-0">
+                <div className="flex-1 flex justify-center">
                     <Visualizer isSpeaking={isSpeaking} />
                 </div>
 
