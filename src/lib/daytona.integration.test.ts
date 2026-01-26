@@ -93,7 +93,7 @@ describe.skipIf(!runIntegration)('DaytonaService Full Integration', () => {
     expect(readContent).toContain('Integration test content');
     expect(readContent).toContain('Line 2');
     console.log('✅ File operations successful');
-  }, 30000);
+  }, 60000);
 
   it('5. List files in directory', async () => {
     if (!workspaceId) {
@@ -110,7 +110,7 @@ describe.skipIf(!runIntegration)('DaytonaService Full Integration', () => {
     const testFile = files.find(f => f.name === 'integration_test.txt');
     expect(testFile).toBeDefined();
     console.log(`✅ Found ${files.length} files, including our test file`);
-  }, 30000);
+  }, 60000);
 
   it('6. Execute code with file persistence', async () => {
     if (!workspaceId) {
@@ -133,7 +133,7 @@ print(f"Working directory: {os.getcwd()}")
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Script executed successfully');
     console.log('✅ Persisted code execution successful');
-  }, 30000);
+  }, 60000);
 
   it('7. Execute JavaScript/Node code', async () => {
     if (!workspaceId) {
