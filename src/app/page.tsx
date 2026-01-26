@@ -20,12 +20,7 @@ export default function Home() {
             <Logo size={32} />
             Daytona Interview Sandbox
           </div>
-          <div className="flex gap-4">
-            <Link href="/test">
-              <Button variant="ghost">Smoke Test</Button>
-            </Link>
-            <StartInterviewButton size="default" showIcon={false} />
-          </div>
+          <StartInterviewButton size="default" showIcon={false} />
         </div>
       </header>
 
