@@ -2,7 +2,7 @@
  * Gemini Live Client v2
  * Enhanced WebSocket connection to Gemini Multimodal Live API
  * Features:
- * - Native audio model (gemini-2.5-flash-native-audio-preview)
+ * - Native audio model (gemini-2.0-flash-live)
  * - Voice Activity Detection (VAD) for natural turn-taking
  * - Interruption handling - stops when user speaks
  * - Proactive tool calling
@@ -17,8 +17,8 @@ const OUTPUT_SAMPLE_RATE = 24000; // Output is always 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
-// Use the native audio model as specified by user
-const MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
+// Use the native audio model - update model name as Gemini releases new versions
+const MODEL = "models/gemini-2.5-flash-native-audio-dialog";
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
