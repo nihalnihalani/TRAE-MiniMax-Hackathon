@@ -2,7 +2,7 @@
  * Gemini Live Client v2
  * Enhanced WebSocket connection to Gemini Multimodal Live API
  * Features:
- * - Native audio model (gemini-2.0-flash-live)
+ * - Uses gemini-2.0-flash-exp (reliable with Live API)
  * - Voice Activity Detection (VAD) for natural turn-taking
  * - Interruption handling - stops when user speaks
  * - Proactive tool calling
@@ -17,8 +17,9 @@ const OUTPUT_SAMPLE_RATE = 24000; // Output is always 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
-// Use the native audio model - update model name as Gemini releases new versions
-const MODEL = "models/gemini-2.5-flash-native-audio-dialog";
+// Use gemini-2.0-flash-exp which works reliably with Live API
+// Note: 2.5 native audio models have known API key rejection issues
+const MODEL = "models/gemini-2.0-flash-exp";
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
@@ -141,6 +142,36 @@ export class GeminiLiveClient {
 
       this.ws.onclose = (event) => {
         console.log("🔌 Gemini Live WebSocket Closed:", event.code, event.reason);
+
+        // Provide detailed error messages based on close code
+        let errorMessage = "";
+        switch (event.code) {
+          case 1000:
+            // Normal close, no error
+            break;
+          case 1006:
+            errorMessage = "Connection lost unexpectedly. Check your internet connection.";
+            break;
+          case 1007:
+            errorMessage = "Audio format error - the model requires audio input. Make sure microphone is working.";
+            break;
+          case 1008:
+            errorMessage = "API key rejected or policy violation. Try regenerating your API key.";
+            break;
+          case 1011:
+            errorMessage = "Server error. The model may not be available.";
+            break;
+          default:
+            if (event.code >= 4000) {
+              errorMessage = `Gemini API error: ${event.reason || 'Unknown error'} (code: ${event.code})`;
+            }
+        }
+
+        if (errorMessage) {
+          console.error("❌", errorMessage);
+          this.onError(new Error(errorMessage));
+        }
+
         this.onStatusChange('disconnected');
         this.stopAudio();
       };
@@ -314,11 +345,10 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
                 voiceName: "Aoede" // Warm, professional voice
               }
             },
-            // Enable affective dialog for natural responses
             languageCode: "en-US"
           }
         },
-        // Voice Activity Detection - use defaults for reliable behavior
+        // Voice Activity Detection - enabled for natural conversation
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false
