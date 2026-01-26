@@ -5,13 +5,12 @@ import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import ReactMarkdown from 'react-markdown';
-import { PROBLEMS, Problem } from '@/data/problems';
-import { COMPANIES, CompanyProblem } from '@/data/company-problems';
-import { useInterviewStore } from '@/lib/store';
-import { ChevronRight, ChevronLeft, RefreshCw, Lightbulb, GraduationCap, Flame } from "lucide-react";
+import { Problem } from '@/data/problems';
+import { COMPANIES, CompanyProblem, getAllCompanyProblems, NEETCODE_CATEGORIES } from '@/data/company-problems';
+import { useInterviewStore, CustomProblem } from '@/lib/store';
+import { RefreshCw, Lightbulb, GraduationCap, Flame } from "lucide-react";
 
 export function ProblemDescription() {
-    const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
     const [showHints, setShowHints] = useState<number[]>([]);
     const {
         setCode,
@@ -19,57 +18,54 @@ export function ProblemDescription() {
         currentProblemId,
         interviewMode,
         selectedCompanyId,
+        customProblems,
     } = useInterviewStore();
 
     // Get the appropriate problem based on mode
     const isPracticeMode = interviewMode === 'practice';
-    const company = isPracticeMode && selectedCompanyId
+    const company = isPracticeMode && selectedCompanyId && !['custom', 'neetcode-150'].includes(selectedCompanyId)
         ? COMPANIES.find(c => c.id === selectedCompanyId)
         : undefined;
 
-    // In practice mode, find the problem from the company's problems
-    const practiceProblem = isPracticeMode && company && currentProblemId
-        ? company.problems.find(p => p.id === currentProblemId)
+    // Get all company problems for finding the current one
+    const allCompanyProblems = getAllCompanyProblems();
+
+    // Find the problem based on the selected company type
+    let practiceProblem: Problem | CompanyProblem | CustomProblem | undefined = undefined;
+
+    if (isPracticeMode && currentProblemId) {
+        if (selectedCompanyId === 'custom') {
+            // Custom problems from user's library
+            practiceProblem = customProblems.find(p => p.id === currentProblemId);
+        } else if (selectedCompanyId === 'neetcode-150') {
+            // NeetCode 150 problems
+            practiceProblem = NEETCODE_CATEGORIES
+                .flatMap(cat => cat.problems)
+                .find(p => p.id === currentProblemId);
+        } else if (company) {
+            // Regular company problems
+            practiceProblem = company.problems.find(p => p.id === currentProblemId);
+        }
+    }
+
+    // In real interview mode, find the problem from all company problems
+    const interviewProblem = !isPracticeMode && currentProblemId
+        ? allCompanyProblems.find(p => p.id === currentProblemId)
         : undefined;
 
-    // Regular mode problem - always show a problem (default to first if index is out of bounds)
-    const regularProblem = !isPracticeMode ? (PROBLEMS[currentProblemIndex] || PROBLEMS[0]) : undefined;
+    // Current problem (either practice or interview)
+    const problem: Problem | CompanyProblem | CustomProblem | undefined = practiceProblem || interviewProblem;
 
-    // Current problem (either practice or regular)
-    const problem: Problem | CompanyProblem | undefined = practiceProblem || regularProblem;
-
-    // Initialize problem on mount for regular mode, and sync index with store's currentProblemId
+    // Initialize problem on mount for regular mode
     useEffect(() => {
-        if (!isPracticeMode) {
-            // If there's a persisted currentProblemId, sync the index
-            if (currentProblemId) {
-                const index = PROBLEMS.findIndex(p => p.id === currentProblemId);
-                if (index !== -1 && index !== currentProblemIndex) {
-                    setCurrentProblemIndex(index);
-                }
-            } else {
-                // No persisted problem, set the first one
-                setCode(PROBLEMS[0].starterCode);
-                setCurrentProblemId(PROBLEMS[0].id);
-            }
+        if (!isPracticeMode && !currentProblemId && allCompanyProblems.length > 0) {
+            // No persisted problem, set a random one
+            const randomIndex = Math.floor(Math.random() * allCompanyProblems.length);
+            const randomProblem = allCompanyProblems[randomIndex];
+            setCode(randomProblem.starterCode);
+            setCurrentProblemId(randomProblem.id);
         }
-    }, [isPracticeMode]); // Only run when mode changes or on mount
-
-    const handleNextProblem = () => {
-        if (isPracticeMode) return; // Disabled in practice mode
-        const nextIndex = (currentProblemIndex + 1) % PROBLEMS.length;
-        setCurrentProblemIndex(nextIndex);
-        setCode(PROBLEMS[nextIndex].starterCode);
-        setCurrentProblemId(PROBLEMS[nextIndex].id);
-    };
-
-    const handlePrevProblem = () => {
-        if (isPracticeMode) return; // Disabled in practice mode
-        const prevIndex = (currentProblemIndex - 1 + PROBLEMS.length) % PROBLEMS.length;
-        setCurrentProblemIndex(prevIndex);
-        setCode(PROBLEMS[prevIndex].starterCode);
-        setCurrentProblemId(PROBLEMS[prevIndex].id);
-    };
+    }, [isPracticeMode, currentProblemId]);
 
     const handleReset = () => {
         if (problem) {
@@ -83,8 +79,7 @@ export function ProblemDescription() {
         }
     };
 
-    // In regular mode, we should always have a problem
-    // In practice mode, show a message if no problem is selected (user needs to go through /practice)
+    // Show loading state if no problem yet
     if (!problem) {
         if (isPracticeMode) {
             return (
@@ -99,17 +94,30 @@ export function ProblemDescription() {
                 </Card>
             );
         }
-        // For regular mode, this shouldn't happen, but fallback to first problem
-        const fallbackProblem = PROBLEMS[0];
-        setCode(fallbackProblem.starterCode);
-        setCurrentProblemId(fallbackProblem.id);
-        return null; // Will re-render with the problem
+        // For regular mode, this shouldn't happen, but fallback
+        return (
+            <Card className="h-full border-0 rounded-none overflow-hidden flex flex-col items-center justify-center">
+                <CardContent className="text-center space-y-4">
+                    <p className="text-muted-foreground">Loading problem...</p>
+                </CardContent>
+            </Card>
+        );
     }
 
-    // Type guard to check if problem is a CompanyProblem
-    const isCompanyProblem = (p: Problem | CompanyProblem): p is CompanyProblem => {
+    // Type guard to check if problem is a CompanyProblem (includes NeetCode)
+    const isCompanyProblem = (p: Problem | CompanyProblem | CustomProblem): p is CompanyProblem => {
         return 'company' in p && 'hints' in p;
     };
+
+    // Type guard to check if problem is a CustomProblem
+    const isCustomProblem = (p: Problem | CompanyProblem | CustomProblem): p is CustomProblem => {
+        return 'addedAt' in p;
+    };
+
+    // Get company info for the problem (works for both modes)
+    const problemCompany = isCompanyProblem(problem)
+        ? COMPANIES.find(c => c.id === problem.company)
+        : undefined;
 
     return (
         <Card className="h-full border-0 rounded-none overflow-hidden flex flex-col">
@@ -124,33 +132,20 @@ export function ProblemDescription() {
                             {problem.difficulty}
                         </span>
                     </CardTitle>
-                    {!isPracticeMode && (
-                        <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={handlePrevProblem} className="h-8 w-8">
-                                <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <span className="text-xs text-muted-foreground w-12 text-center">
-                                {currentProblemIndex + 1} / {PROBLEMS.length}
-                            </span>
-                            <Button variant="ghost" size="icon" onClick={handleNextProblem} className="h-8 w-8">
-                                <ChevronRight className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    )}
                 </div>
                 <CardDescription className="flex items-center justify-between">
-                    {isPracticeMode && company ? (
+                    {problemCompany ? (
                         <span className="flex items-center gap-2">
-                            <span style={{ backgroundColor: `${company.color}20` }} className="p-1 rounded flex items-center justify-center">
+                            <span style={{ backgroundColor: `${problemCompany.color}20` }} className="p-1 rounded flex items-center justify-center">
                                 <Image
-                                    src={company.logo}
-                                    alt={`${company.name} logo`}
+                                    src={problemCompany.logo}
+                                    alt={`${problemCompany.name} logo`}
                                     width={16}
                                     height={16}
                                     className="object-contain"
                                 />
                             </span>
-                            <span>{company.name} Style</span>
+                            <span>{problemCompany.name} Style</span>
                             {isCompanyProblem(problem) && problem.frequency === 'High' && (
                                 <span className="flex items-center gap-1 text-orange-500 text-xs">
                                     <Flame className="w-3 h-3" /> Frequently Asked
@@ -158,7 +153,7 @@ export function ProblemDescription() {
                             )}
                         </span>
                     ) : (
-                        <span>Select a problem to start.</span>
+                        <span>Coding Challenge</span>
                     )}
                     <Button variant="ghost" size="sm" onClick={handleReset} className="h-6 text-xs gap-1">
                         <RefreshCw className="w-3 h-3" /> Reset Code
@@ -191,7 +186,7 @@ export function ProblemDescription() {
                 </div>
 
                 {/* Hints section for practice mode */}
-                {isPracticeMode && isCompanyProblem(problem) && problem.hints.length > 0 && (
+                {isPracticeMode && (isCompanyProblem(problem) || isCustomProblem(problem)) && problem.hints && problem.hints.length > 0 && (
                     <div className="mt-6 border-t pt-4">
                         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                             <GraduationCap className="w-5 h-5 text-primary" />
@@ -231,8 +226,8 @@ export function ProblemDescription() {
                     </div>
                 )}
 
-                {/* Tags for company problems */}
-                {isPracticeMode && isCompanyProblem(problem) && problem.tags.length > 0 && (
+                {/* Tags for company/custom problems */}
+                {(isCompanyProblem(problem) || isCustomProblem(problem)) && problem.tags && problem.tags.length > 0 && (
                     <div className="mt-6 border-t pt-4">
                         <h3 className="text-lg font-semibold mb-2">Topics</h3>
                         <div className="flex flex-wrap gap-2">

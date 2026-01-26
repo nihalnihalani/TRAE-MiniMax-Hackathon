@@ -1,4 +1,7 @@
 import { Problem } from './problems';
+import { NEETCODE_150, NEETCODE_CATEGORIES } from './neetcode-problems';
+
+export { NEETCODE_CATEGORIES };
 
 export interface CompanyProblem extends Problem {
   company: string;
@@ -908,6 +911,7 @@ Implement the HitCounter class with hit(timestamp) and getHits(timestamp) method
 // EXPORT ALL COMPANIES
 // ============================================
 export const COMPANIES: Company[] = [
+  NEETCODE_150, // Featured first - 150 curated problems
   {
     id: 'google',
     name: 'Google',

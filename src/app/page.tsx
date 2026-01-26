@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/ui/Logo";
-import { Mic, Code2, Sparkles, ArrowRight, Video, Lock, GraduationCap } from "lucide-react";
-import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
+import { Mic, Sparkles, Lock, GraduationCap } from "lucide-react";
 import { StartInterviewButton } from "@/components/interview/StartInterviewButton";
 
 export default function Home() {
@@ -101,16 +100,6 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* Metrics Dashboard Section */}
-        <div className="w-full max-w-6xl mt-24 animate-slide-up-fade" style={{ animationDelay: '800ms' }}>
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold mb-2">Platform Metrics</h2>
-            <p className="text-muted-foreground">Real-time performance stats from our interview engine</p>
-          </div>
-          <div className="bg-muted/30 border rounded-3xl p-6">
-            <MetricsDashboard />
-          </div>
-        </div>
       </main>
 
       <footer className="border-t py-12 bg-muted/20 relative z-10">

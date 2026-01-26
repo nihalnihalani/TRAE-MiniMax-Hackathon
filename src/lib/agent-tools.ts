@@ -1,7 +1,7 @@
-import { useInterviewStore } from '@/lib/store';
+import { useInterviewStore, CustomProblem } from '@/lib/store';
 import { generateTestCode } from '@/lib/test-runner';
-import { PROBLEMS, Problem } from '@/data/problems';
-import { COMPANIES, CompanyProblem } from '@/data/company-problems';
+import { Problem } from '@/data/problems';
+import { COMPANIES, CompanyProblem, getAllCompanyProblems, NEETCODE_CATEGORIES } from '@/data/company-problems';
 
 // Wrapper to catch tool errors and prevent disconnections
 const wrapTool = (name: string, fn: Function) => async (...args: any[]) => {
@@ -17,22 +17,42 @@ const wrapTool = (name: string, fn: Function) => async (...args: any[]) => {
 };
 
 // Helper to get the current problem (works for both regular and practice mode)
-function getCurrentProblem(): Problem | CompanyProblem | null {
+function getCurrentProblem(): Problem | CompanyProblem | CustomProblem | null {
     const store = useInterviewStore.getState();
-    const { currentProblemId, interviewMode, selectedCompanyId } = store;
+    const { currentProblemId, interviewMode, selectedCompanyId, customProblems } = store;
 
     if (!currentProblemId) return null;
 
-    // Regular mode - check standard problems
-    const regularProblem = PROBLEMS.find(p => p.id === currentProblemId);
-    if (regularProblem) return regularProblem;
-
-    // Practice mode - check company problems
+    // Practice mode - check different sources based on selected company
     if (interviewMode === 'practice' && selectedCompanyId) {
-        const company = COMPANIES.find(c => c.id === selectedCompanyId);
-        const companyProblem = company?.problems.find(p => p.id === currentProblemId);
-        if (companyProblem) return companyProblem;
+        // Custom problems
+        if (selectedCompanyId === 'custom') {
+            const customProblem = customProblems.find(p => p.id === currentProblemId);
+            if (customProblem) return customProblem;
+        }
+        // NeetCode 150 problems
+        else if (selectedCompanyId === 'neetcode-150') {
+            const neetcodeProblem = NEETCODE_CATEGORIES
+                .flatMap(cat => cat.problems)
+                .find(p => p.id === currentProblemId);
+            if (neetcodeProblem) return neetcodeProblem;
+        }
+        // Regular company problems
+        else {
+            const company = COMPANIES.find(c => c.id === selectedCompanyId);
+            const companyProblem = company?.problems.find(p => p.id === currentProblemId);
+            if (companyProblem) return companyProblem;
+        }
     }
+
+    // Regular interview mode - check all company problems including NeetCode
+    const allProblems = getAllCompanyProblems();
+    const problem = allProblems.find(p => p.id === currentProblemId);
+    if (problem) return problem;
+
+    // Also check custom problems
+    const customProblem = customProblems.find(p => p.id === currentProblemId);
+    if (customProblem) return customProblem;
 
     return null;
 }

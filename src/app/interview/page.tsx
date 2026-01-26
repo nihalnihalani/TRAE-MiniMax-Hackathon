@@ -22,7 +22,7 @@ import { PracticeReportDialog } from "@/components/practice/PracticeReportDialog
 import { WorkspaceProgressIndicator } from "@/components/workspace/WorkspaceProgressIndicator";
 import { Shield, AlertTriangle, GraduationCap } from "lucide-react";
 import { PROBLEMS } from "@/data/problems";
-import { COMPANIES } from "@/data/company-problems";
+import { COMPANIES, NEETCODE_CATEGORIES } from "@/data/company-problems";
 import { generateTestCode } from "@/lib/test-runner";
 import Link from "next/link";
 
@@ -49,6 +49,7 @@ export default function InterviewPage() {
     setInterviewMode,
     selectedCompanyId,
     setSelectedCompanyId,
+    customProblems,
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
@@ -195,8 +196,19 @@ export default function InterviewPage() {
 
     // Check company problems if in practice mode and not found in regular problems
     if (!currentProblem && interviewMode === 'practice' && selectedCompanyId) {
-      const company = COMPANIES.find(c => c.id === selectedCompanyId);
-      currentProblem = company?.problems.find(p => p.id === currentProblemId);
+      if (selectedCompanyId === 'custom') {
+        // Custom problems from user's library
+        currentProblem = customProblems.find(p => p.id === currentProblemId);
+      } else if (selectedCompanyId === 'neetcode-150') {
+        // NeetCode 150 problems
+        currentProblem = NEETCODE_CATEGORIES
+          .flatMap(cat => cat.problems)
+          .find(p => p.id === currentProblemId);
+      } else {
+        // Regular company problems
+        const company = COMPANIES.find(c => c.id === selectedCompanyId);
+        currentProblem = company?.problems.find(p => p.id === currentProblemId);
+      }
     }
 
     const testCode = currentProblem

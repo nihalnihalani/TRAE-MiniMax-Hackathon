@@ -42,6 +42,24 @@ interface PracticeSession {
   duration: number;
 }
 
+// Custom problem imported from LeetCode or manually added
+export interface CustomProblem {
+  id: string;
+  title: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  description: string;
+  examples: { input: string; output: string; explanation?: string }[];
+  constraints: string[];
+  starterCode: string;
+  functionName: string;
+  testCases: { inputs: any[]; expected: any }[];
+  tags: string[];
+  hints: string[];
+  leetcodeUrl?: string;
+  addedAt: number;
+  category?: string;
+}
+
 // Workspace status types
 export type WorkspaceStatus = 'idle' | 'creating' | 'installing' | 'ready' | 'error';
 
@@ -120,6 +138,12 @@ interface InterviewState {
   practiceHistory: PracticeSession[];
   addPracticeSession: (session: PracticeSession) => void;
   clearPracticeHistory: () => void;
+
+  // Custom Problems (LeetCode import / manual)
+  customProblems: CustomProblem[];
+  addCustomProblem: (problem: CustomProblem) => void;
+  removeCustomProblem: (id: string) => void;
+  updateCustomProblem: (id: string, updates: Partial<CustomProblem>) => void;
 }
 
 export const useInterviewStore = create<InterviewState>()(
@@ -227,10 +251,24 @@ export const useInterviewStore = create<InterviewState>()(
         practiceHistory: [...state.practiceHistory, session]
       })),
       clearPracticeHistory: () => set({ practiceHistory: [] }),
+
+      // Custom Problems
+      customProblems: [],
+      addCustomProblem: (problem) => set((state) => ({
+        customProblems: [...state.customProblems, problem]
+      })),
+      removeCustomProblem: (id) => set((state) => ({
+        customProblems: state.customProblems.filter(p => p.id !== id)
+      })),
+      updateCustomProblem: (id, updates) => set((state) => ({
+        customProblems: state.customProblems.map(p =>
+          p.id === id ? { ...p, ...updates } : p
+        )
+      })),
     }),
     {
       name: 'interview-storage',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<InterviewState>;
@@ -274,6 +312,13 @@ export const useInterviewStore = create<InterviewState>()(
             practiceHistory: []
           };
         }
+        if (version === 4) {
+          // Migrate from version 4: Add custom problems for LeetCode import
+          return {
+            ...state,
+            customProblems: []
+          };
+        }
         return state as InterviewState;
       },
       partialize: (state) => ({
@@ -283,7 +328,8 @@ export const useInterviewStore = create<InterviewState>()(
         interviewMode: state.interviewMode, // Persist interview mode preference
         selectedCompanyId: state.selectedCompanyId, // Persist selected company for practice mode
         currentProblemId: state.currentProblemId, // Persist current problem
-        practiceHistory: state.practiceHistory // Persist practice history
+        practiceHistory: state.practiceHistory, // Persist practice history
+        customProblems: state.customProblems // Persist custom problems
       }),
     }
   )

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useInterviewStore } from '@/lib/store';
 import { ArrowRight } from 'lucide-react';
-import { PROBLEMS } from '@/data/problems';
+import { getAllCompanyProblems } from '@/data/company-problems';
 
 interface StartInterviewButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
@@ -22,10 +22,13 @@ export function StartInterviewButton({ size = 'lg', className, variant = 'defaul
     setInterviewMode('real');
     setSelectedCompanyId(null);
 
-    // Set the first problem
-    if (PROBLEMS.length > 0) {
-      setCurrentProblemId(PROBLEMS[0].id);
-      setCode(PROBLEMS[0].starterCode);
+    // Get all problems from all companies and pick one randomly
+    const allProblems = getAllCompanyProblems();
+    if (allProblems.length > 0) {
+      const randomIndex = Math.floor(Math.random() * allProblems.length);
+      const randomProblem = allProblems[randomIndex];
+      setCurrentProblemId(randomProblem.id);
+      setCode(randomProblem.starterCode);
     }
 
     // Navigate to interview page

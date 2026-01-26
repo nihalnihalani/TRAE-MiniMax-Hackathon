@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
 import { CompanySelector } from '@/components/practice/CompanySelector';
 import { ProblemSelector } from '@/components/practice/ProblemSelector';
+import { NeetCodeProblemSelector } from '@/components/practice/NeetCodeProblemSelector';
+import { CustomProblemsSection } from '@/components/practice/CustomProblemsSection';
 import { useInterviewStore } from '@/lib/store';
-import { COMPANIES } from '@/data/company-problems';
+import { COMPANIES, NEETCODE_CATEGORIES } from '@/data/company-problems';
 import { ArrowLeft, GraduationCap } from 'lucide-react';
 
 type Step = 'company' | 'problem';
@@ -19,7 +21,14 @@ export default function PracticePage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
 
-  const { setInterviewMode, setSelectedCompanyId: setStoreCompanyId, setCurrentProblemId, setCode, setLanguage } = useInterviewStore();
+  const {
+    setInterviewMode,
+    setSelectedCompanyId: setStoreCompanyId,
+    setCurrentProblemId,
+    setCode,
+    setLanguage,
+    customProblems,
+  } = useInterviewStore();
 
   const handleCompanySelect = (companyId: string) => {
     setSelectedCompanyId(companyId);
@@ -39,9 +48,23 @@ export default function PracticePage() {
   const handleStartInterview = () => {
     if (!selectedCompanyId || !selectedProblemId) return;
 
-    // Find the selected problem
-    const company = COMPANIES.find(c => c.id === selectedCompanyId);
-    const problem = company?.problems.find(p => p.id === selectedProblemId);
+    let problem;
+
+    // Handle custom problems
+    if (selectedCompanyId === 'custom') {
+      problem = customProblems.find(p => p.id === selectedProblemId);
+    }
+    // Handle NeetCode 150 problems
+    else if (selectedCompanyId === 'neetcode-150') {
+      problem = NEETCODE_CATEGORIES
+        .flatMap(cat => cat.problems)
+        .find(p => p.id === selectedProblemId);
+    }
+    // Handle regular company problems
+    else {
+      const company = COMPANIES.find(c => c.id === selectedCompanyId);
+      problem = company?.problems.find(p => p.id === selectedProblemId);
+    }
 
     if (!problem) return;
 
@@ -56,6 +79,13 @@ export default function PracticePage() {
 
     // Navigate to the interview page
     router.push('/interview');
+  };
+
+  // Get step label based on selected company
+  const getStepLabel = () => {
+    if (selectedCompanyId === 'neetcode-150') return 'Select from NeetCode 150';
+    if (selectedCompanyId === 'custom') return 'Your Custom Problems';
+    return 'Select Problem';
   };
 
   return (
@@ -92,7 +122,7 @@ export default function PracticePage() {
               }`}>
                 1
               </div>
-              <span className="hidden sm:inline">Select Company</span>
+              <span className="hidden sm:inline">Select Category</span>
             </div>
             <div className="w-12 h-0.5 bg-secondary" />
             <div className={`flex items-center gap-2 ${step === 'problem' ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -101,7 +131,7 @@ export default function PracticePage() {
               }`}>
                 2
               </div>
-              <span className="hidden sm:inline">Select Problem</span>
+              <span className="hidden sm:inline">{step === 'problem' ? getStepLabel() : 'Select Problem'}</span>
             </div>
           </div>
 
@@ -113,7 +143,28 @@ export default function PracticePage() {
             />
           )}
 
-          {step === 'problem' && selectedCompanyId && (
+          {/* NeetCode 150 Problem Selector */}
+          {step === 'problem' && selectedCompanyId === 'neetcode-150' && (
+            <NeetCodeProblemSelector
+              selectedProblemId={selectedProblemId}
+              onSelectProblem={handleProblemSelect}
+              onBack={handleBack}
+              onStartInterview={handleStartInterview}
+            />
+          )}
+
+          {/* Custom Problems Section */}
+          {step === 'problem' && selectedCompanyId === 'custom' && (
+            <CustomProblemsSection
+              selectedProblemId={selectedProblemId}
+              onSelectProblem={handleProblemSelect}
+              onBack={handleBack}
+              onStartInterview={handleStartInterview}
+            />
+          )}
+
+          {/* Regular Company Problem Selector */}
+          {step === 'problem' && selectedCompanyId && !['neetcode-150', 'custom'].includes(selectedCompanyId) && (
             <ProblemSelector
               companyId={selectedCompanyId}
               selectedProblemId={selectedProblemId}
