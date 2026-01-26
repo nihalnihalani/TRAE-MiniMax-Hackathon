@@ -5,17 +5,15 @@ import { Button } from "@/components/ui/button";
 import { StatusIndicator } from './StatusIndicator';
 import { Visualizer } from './Visualizer';
 import { ThinkingIndicator } from './ThinkingIndicator';
-import { Mic, MicOff, Wand2, GraduationCap } from 'lucide-react';
+import { Mic, MicOff, GraduationCap } from 'lucide-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { getAgentTools } from '@/lib/agent-tools';
-import { WIZARD_SCRIPT, WIZARD_SHORTCUT } from '@/lib/constants';
 import { GeminiLiveClient, ConnectionStatus, InterviewMode, ProblemContext } from '@/lib/gemini-live-client';
 import { PROBLEMS } from '@/data/problems';
 import { COMPANIES } from '@/data/company-problems';
 
 export function InterviewAgent() {
-    const { code, isWizardMode, workspaceId, interviewMode, currentProblemId, selectedCompanyId } = useInterviewStore();
-    const [scriptIndex, setScriptIndex] = useState(0);
+    const { code, workspaceId, workspaceStatus, interviewMode, currentProblemId, selectedCompanyId, setAgentDisconnect } = useInterviewStore();
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
     
@@ -114,8 +112,8 @@ export function InterviewAgent() {
             setIsModelSpeaking(false);
             setIsThinking(false);
             setCurrentAction('');
-            // Brief visual feedback then reset
-            setTimeout(() => setWasInterrupted(false), 1000);
+            // Show feedback for 3 seconds so user knows they were heard
+            setTimeout(() => setWasInterrupted(false), 3000);
         };
         client.onTurnEnd = () => {
             console.log("✅ Model turn complete");
@@ -129,13 +127,34 @@ export function InterviewAgent() {
             }
         };
 
+        // Handle case where model doesn't respond (useful for debugging)
+        client.onNoResponse = () => {
+            console.warn("⚠️ Model didn't respond to user input");
+        };
+
         clientRef.current = client;
         console.log(`🎙️ Gemini Live client initialized in ${mode} mode`);
 
+        // Register disconnect callback for ending interview
+        setAgentDisconnect(() => {
+            if (clientRef.current) {
+                clientRef.current.disconnect();
+            }
+        });
+
         return () => {
             client.disconnect();
+            setAgentDisconnect(null);
         };
-    }, [workspaceId, interviewMode]); // Re-init if workspace or interview mode changes
+    }, [workspaceId, interviewMode, setAgentDisconnect]); // Re-init if workspace or interview mode changes
+
+    // Auto-start when workspace is ready
+    useEffect(() => {
+        if (workspaceStatus === 'ready' && status === 'disconnected' && clientRef.current) {
+            console.log("🚀 Auto-starting Gemini Live (workspace ready)");
+            handleStart();
+        }
+    }, [workspaceStatus, status]);
 
     // Track previous code to detect meaningful changes
     const previousCodeRef = useRef<string>('');
@@ -258,63 +277,6 @@ export function InterviewAgent() {
         }
     };
 
-    // Keyboard shortcut for Wizard Mode Next Line
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey === WIZARD_SHORTCUT.ctrl && e.shiftKey === WIZARD_SHORTCUT.shift && e.key === WIZARD_SHORTCUT.key) {
-                if (isWizardMode) {
-                    triggerWizardLine();
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isWizardMode, scriptIndex]);
-
-    const triggerWizardLine = async () => {
-        const text = WIZARD_SCRIPT[scriptIndex % WIZARD_SCRIPT.length];
-        console.log("Wizard Mode Triggered:", text);
-        setScriptIndex(prev => prev + 1);
-
-        try {
-            setIsThinking(true);
-            setCurrentAction("Alexis speaking...");
-
-            // If connected to Gemini Live, speak through the active session
-            if (clientRef.current?.isConnected()) {
-                clientRef.current.sendText(text);
-                // Audio will be played through the existing audio queue
-                // Set a timeout to clear thinking state (audio playback is async)
-                setTimeout(() => setIsThinking(false), 3000);
-                return;
-            }
-
-            // Fallback to TTS API endpoint (using Gemini TTS)
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
-            });
-
-            if (!response.ok) throw new Error("TTS failed");
-
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const audio = new Audio(url);
-
-            audio.onended = () => {
-                setIsThinking(false);
-                URL.revokeObjectURL(url);
-            };
-
-            await audio.play();
-
-        } catch (err) {
-            console.error("Wizard Audio Error:", err);
-            setIsThinking(false);
-        }
-    };
-
     return (
         <div id="agent-container" className="flex flex-col gap-4">
             {/* Thinking Indicator */}
@@ -341,30 +303,34 @@ export function InterviewAgent() {
                     <Button variant="destructive" size="icon" onClick={handleStop}>
                         <MicOff className="w-4 h-4" />
                     </Button>
+                ) : status === 'connecting' ? (
+                    <Button variant="outline" disabled>
+                        <Mic className="w-4 h-4 mr-2 animate-pulse" />
+                        Connecting...
+                    </Button>
+                ) : workspaceStatus !== 'ready' ? (
+                    <Button variant="outline" disabled>
+                        {interviewMode === 'practice' ? (
+                            <GraduationCap className="w-4 h-4 mr-2" />
+                        ) : (
+                            <Mic className="w-4 h-4 mr-2" />
+                        )}
+                        Waiting for workspace...
+                    </Button>
                 ) : (
                     <Button
                         variant="default"
                         onClick={handleStart}
-                        disabled={status === 'connecting'} // Allow starting even if workspaceId is null, though tools might fail
-                        title={!workspaceId ? "Workspace not ready (Tools restricted)" : undefined}
                     >
                         {interviewMode === 'practice' ? (
                             <GraduationCap className="w-4 h-4 mr-2" />
                         ) : (
                             <Mic className="w-4 h-4 mr-2" />
                         )}
-                        {status === 'connecting' ? "Connecting..." : 
-                         interviewMode === 'practice' ? "Start Practice (Gemini)" : "Start Interview (Gemini)"}
+                        Reconnect
                     </Button>
                 )}
             </div>
-
-            {isWizardMode && (
-                <div className="text-xs text-purple-400 bg-purple-900/20 p-2 rounded border border-purple-500/30 flex items-center gap-2">
-                    <Wand2 className="w-3 h-3" />
-                    Wizard Mode Active. Next: "{WIZARD_SCRIPT[scriptIndex % WIZARD_SCRIPT.length]}"
-                </div>
-            )}
         </div>
     );
 }

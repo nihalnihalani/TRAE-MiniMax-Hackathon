@@ -1,11 +1,14 @@
 /**
- * Gemini Live Client v2
+ * Gemini Live Client v3
  * Enhanced WebSocket connection to Gemini Multimodal Live API
  * Features:
- * - Uses gemini-2.0-flash-exp (reliable with Live API)
+ * - Uses gemini-2.5-flash-native-audio-preview for Live API
  * - Voice Activity Detection (VAD) for natural turn-taking
  * - Interruption handling - stops when user speaks
  * - Proactive tool calling
+ * - Connection retry with exponential backoff
+ * - Response validation and recovery
+ * - Audio context state restoration
  */
 
 import { INTERVIEW_TOOLS } from "./gemini-tools";
@@ -17,9 +20,13 @@ const OUTPUT_SAMPLE_RATE = 24000; // Output is always 24kHz
 const HOST = "generativelanguage.googleapis.com";
 const VERSION = "v1alpha";
 
-// Use gemini-2.0-flash-exp which works reliably with Live API
-// Note: 2.5 native audio models have known API key rejection issues
-const MODEL = "models/gemini-2.0-flash-exp";
+// Use gemini-2.5-flash-native-audio for Live API
+const MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
+
+// Connection retry configuration
+const MAX_RETRY_ATTEMPTS = 3;
+const INITIAL_RETRY_DELAY_MS = 1000;
+const MAX_AUDIO_QUEUE_SIZE = 100; // Prevent memory leaks
 
 // Interview mode type
 export type InterviewMode = 'real' | 'practice';
@@ -54,6 +61,15 @@ export class GeminiLiveClient {
   private currentSource: AudioBufferSourceNode | null = null;
   private scheduledSources: AudioBufferSourceNode[] = []; // Track ALL scheduled sources
 
+  // Connection retry state
+  private retryAttempts = 0;
+  private retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  // Response tracking
+  private lastResponseTime = 0;
+  private pendingUserInput = false;
+  private responseCheckTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   // Callbacks
   public onStatusChange: (status: ConnectionStatus) => void = () => {};
   public onMessage: (message: string) => void = () => {};
@@ -63,6 +79,7 @@ export class GeminiLiveClient {
   public onInterrupted: () => void = () => {};
   public onTurnEnd: () => void = () => {};
   public onModelSpeaking: (isSpeaking: boolean) => void = () => {};
+  public onNoResponse: () => void = () => {}; // Called when model doesn't respond
 
   constructor(private apiKey: string, mode: InterviewMode = 'real') {
     this.interviewMode = mode;
@@ -90,8 +107,12 @@ export class GeminiLiveClient {
     console.log(`📋 Problem context set: ${problem.title}`);
   }
 
-  async connect() {
-    console.log("🚀 Starting Gemini Live connection...");
+  async connect(isRetry = false) {
+    if (!isRetry) {
+      this.retryAttempts = 0;
+    }
+
+    console.log(`🚀 Starting Gemini Live connection... ${isRetry ? `(retry ${this.retryAttempts}/${MAX_RETRY_ATTEMPTS})` : ''}`);
     this.onStatusChange('connecting');
 
     try {
@@ -119,6 +140,7 @@ export class GeminiLiveClient {
 
       this.ws.onopen = async () => {
         console.log("🎙️ Gemini Live WebSocket Connected!");
+        this.retryAttempts = 0; // Reset on successful connection
         this.onStatusChange('connected');
 
         // Send initial setup message with VAD config
@@ -136,21 +158,29 @@ export class GeminiLiveClient {
 
       this.ws.onerror = (event) => {
         console.error("❌ WebSocket Error:", event);
-        this.onStatusChange('error');
-        this.onError(new Error("WebSocket connection error - check if API key is valid"));
+        // Don't immediately set error state - let onclose handle retry
       };
 
       this.ws.onclose = (event) => {
         console.log("🔌 Gemini Live WebSocket Closed:", event.code, event.reason);
 
+        // Clear any pending response checks
+        if (this.responseCheckTimeoutId) {
+          clearTimeout(this.responseCheckTimeoutId);
+          this.responseCheckTimeoutId = null;
+        }
+
         // Provide detailed error messages based on close code
         let errorMessage = "";
+        let shouldRetry = false;
+
         switch (event.code) {
           case 1000:
             // Normal close, no error
             break;
           case 1006:
             errorMessage = "Connection lost unexpectedly. Check your internet connection.";
+            shouldRetry = true; // Transient error, retry
             break;
           case 1007:
             errorMessage = "Audio format error - the model requires audio input. Make sure microphone is working.";
@@ -160,11 +190,25 @@ export class GeminiLiveClient {
             break;
           case 1011:
             errorMessage = "Server error. The model may not be available.";
+            shouldRetry = true; // Server error, might be temporary
             break;
           default:
             if (event.code >= 4000) {
               errorMessage = `Gemini API error: ${event.reason || 'Unknown error'} (code: ${event.code})`;
+              shouldRetry = event.code < 4400; // Retry on 4xxx except client errors
             }
+        }
+
+        // Attempt retry if appropriate
+        if (shouldRetry && this.retryAttempts < MAX_RETRY_ATTEMPTS) {
+          this.retryAttempts++;
+          const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, this.retryAttempts - 1); // Exponential backoff
+          console.log(`🔄 Retrying connection in ${delay}ms... (attempt ${this.retryAttempts}/${MAX_RETRY_ATTEMPTS})`);
+
+          this.retryTimeoutId = setTimeout(() => {
+            this.connect(true);
+          }, delay);
+          return;
         }
 
         if (errorMessage) {
@@ -184,11 +228,23 @@ export class GeminiLiveClient {
   }
 
   disconnect() {
+    // Clear any pending retries
+    if (this.retryTimeoutId) {
+      clearTimeout(this.retryTimeoutId);
+      this.retryTimeoutId = null;
+    }
+    // Clear any pending response checks
+    if (this.responseCheckTimeoutId) {
+      clearTimeout(this.responseCheckTimeoutId);
+      this.responseCheckTimeoutId = null;
+    }
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     this.stopAudio();
+    this.retryAttempts = 0;
   }
 
   /**
@@ -254,6 +310,44 @@ export class GeminiLiveClient {
    */
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Prompt the model to speak - useful when the model hasn't responded
+   * This sends a gentle nudge to ensure the model responds
+   */
+  promptToSpeak(context?: string) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn("Cannot prompt: WebSocket not connected");
+      return;
+    }
+
+    const prompt = context
+      ? `[The candidate just said: "${context}". Please respond to them naturally.]`
+      : `[The candidate is waiting for you to respond. Please speak to them.]`;
+
+    const clientContent = {
+      clientContent: {
+        turns: [
+          {
+            role: "user",
+            parts: [{ text: prompt }]
+          }
+        ],
+        turnComplete: true
+      }
+    };
+
+    console.log("🎤 Prompting model to speak...");
+    this.ws.send(JSON.stringify(clientContent));
+  }
+
+  /**
+   * Get time since last response (for debugging/monitoring)
+   */
+  getTimeSinceLastResponse(): number {
+    if (this.lastResponseTime === 0) return -1;
+    return Date.now() - this.lastResponseTime;
   }
 
   /**
@@ -374,6 +468,9 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
     // Debug: Log all incoming messages
     console.log("📥 Received message:", Object.keys(message));
 
+    // Track that we received a response
+    this.lastResponseTime = Date.now();
+
     // Handle setup complete
     if (message.setupComplete) {
       console.log("✅ Gemini Live setup complete - ready to talk!");
@@ -391,22 +488,40 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
       // Check for turn complete
       if (message.serverContent.turnComplete === true) {
         console.log("✅ Model turn complete");
+        this.pendingUserInput = false; // Reset pending input flag
+
+        // Clear response check timeout since we got a response
+        if (this.responseCheckTimeoutId) {
+          clearTimeout(this.responseCheckTimeoutId);
+          this.responseCheckTimeoutId = null;
+        }
+
         this.onTurnEnd();
       }
 
       // Process model's turn content
       if (message.serverContent.modelTurn) {
         const parts = message.serverContent.modelTurn.parts || [];
+        let hasAudioResponse = false;
+        let hasTextResponse = false;
+
         for (const part of parts) {
           // Handle audio output
           if (part.inlineData && part.inlineData.mimeType?.startsWith("audio/")) {
+            hasAudioResponse = true;
             const audioData = this.base64ToFloat32Array(part.inlineData.data);
             this.enqueueAudio(audioData);
           }
           // Handle text output (transcript)
           if (part.text) {
+            hasTextResponse = true;
             this.onMessage(part.text);
           }
+        }
+
+        // Log response type for debugging
+        if (hasAudioResponse || hasTextResponse) {
+          console.log(`📤 Model response: audio=${hasAudioResponse}, text=${hasTextResponse}`);
         }
       }
     }
@@ -592,6 +707,33 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
   }
 
   private stopAudio() {
+    // Disconnect audio processing nodes to prevent memory leaks
+    try {
+      const processor = (this as any).processor;
+      const source = (this as any).source;
+      const highPassFilter = (this as any).highPassFilter;
+      const lowPassFilter = (this as any).lowPassFilter;
+
+      if (processor) {
+        processor.disconnect();
+        (this as any).processor = null;
+      }
+      if (source) {
+        source.disconnect();
+        (this as any).source = null;
+      }
+      if (highPassFilter) {
+        highPassFilter.disconnect();
+        (this as any).highPassFilter = null;
+      }
+      if (lowPassFilter) {
+        lowPassFilter.disconnect();
+        (this as any).lowPassFilter = null;
+      }
+    } catch (e) {
+      // Nodes may already be disconnected
+    }
+
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
@@ -609,12 +751,43 @@ ${this.problemContext.constraints.map(c => `- ${c}`).join('\n')}
 
   // Audio Output - Seamless playback with pre-scheduling
 
-  private enqueueAudio(data: Float32Array) {
+  private async enqueueAudio(data: Float32Array) {
+    // Memory protection: limit queue size
+    if (this.audioQueue.length >= MAX_AUDIO_QUEUE_SIZE) {
+      console.warn("⚠️ Audio queue full, dropping oldest chunk");
+      this.audioQueue.shift(); // Remove oldest to make room
+    }
+
     this.audioQueue.push(data);
     this.onModelSpeaking(true);
 
+    // Ensure audio context is active (may have been suspended by browser)
+    await this.ensureAudioContextActive();
+
     // Schedule audio immediately for seamless playback
     this.scheduleAudioPlayback();
+  }
+
+  /**
+   * Ensure audio contexts are active (they may be suspended by browser autoplay policy)
+   */
+  private async ensureAudioContextActive() {
+    if (this.outputAudioContext && this.outputAudioContext.state === 'suspended') {
+      try {
+        await this.outputAudioContext.resume();
+        console.log("🔊 Output audio context resumed");
+      } catch (e) {
+        console.warn("Failed to resume output audio context:", e);
+      }
+    }
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+        console.log("🎤 Input audio context resumed");
+      } catch (e) {
+        console.warn("Failed to resume input audio context:", e);
+      }
+    }
   }
 
   private scheduleAudioPlayback() {

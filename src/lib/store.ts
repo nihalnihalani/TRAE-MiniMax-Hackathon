@@ -144,6 +144,10 @@ interface InterviewState {
   addCustomProblem: (problem: CustomProblem) => void;
   removeCustomProblem: (id: string) => void;
   updateCustomProblem: (id: string, updates: Partial<CustomProblem>) => void;
+
+  // Agent disconnect callback (for stopping Gemini Live when ending interview)
+  agentDisconnect: (() => void) | null;
+  setAgentDisconnect: (fn: (() => void) | null) => void;
 }
 
 export const useInterviewStore = create<InterviewState>()(
@@ -265,6 +269,10 @@ export const useInterviewStore = create<InterviewState>()(
           p.id === id ? { ...p, ...updates } : p
         )
       })),
+
+      // Agent disconnect callback
+      agentDisconnect: null,
+      setAgentDisconnect: (fn) => set({ agentDisconnect: fn }),
     }),
     {
       name: 'interview-storage',

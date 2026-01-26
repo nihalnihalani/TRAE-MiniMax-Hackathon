@@ -313,15 +313,12 @@ export const getAgentTools = (workspaceId: string | null) => ({
             return "Concept explanations are for practice mode coaching.";
         }
 
-        // This would normally call an AI to explain the concept
-        // For now, return a prompt for the agent to explain it themselves
+        // Return confirmation that the AI should explain this concept
+        // The AI will use its own knowledge to explain
         return JSON.stringify({
+            status: "ready_to_explain",
             topic: topic,
-            instruction: `Please explain the concept of "${topic}" in a clear, beginner-friendly way. Include:
-1. What it is and why it's useful
-2. A simple example
-3. Common use cases
-4. Tips for implementing it`
+            action: "You should now explain this concept verbally to the candidate in a clear, friendly way. Use simple examples and check if they understand."
         }, null, 2);
     }),
 

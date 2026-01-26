@@ -5,22 +5,19 @@ import {
   ResizablePanel,
   ResizablePanelGroup
 } from "@/components/ui/resizable";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProblemDescription } from "@/components/interview/ProblemDescription";
 import { ConsolePanel } from "@/components/interview/ConsolePanel";
 import { Controls } from "@/components/interview/Controls";
 import { CodeEditor } from "@/components/editor/CodeEditor";
 import { InterviewAgent } from "@/components/agent/InterviewAgent";
-import { AnalysisPanel } from "@/components/analysis/AnalysisPanel";
 import { useInterviewStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { CodeRabbitReviewPanel } from "@/components/analysis/CodeRabbitReviewPanel";
 import { Logo } from "@/components/ui/Logo";
 import { InterviewReportDialog } from "@/components/interview/InterviewReportDialog";
 import { PracticeReportDialog } from "@/components/practice/PracticeReportDialog";
 import { WorkspaceProgressIndicator } from "@/components/workspace/WorkspaceProgressIndicator";
-import { Shield, AlertTriangle, GraduationCap } from "lucide-react";
+import { Shield, GraduationCap } from "lucide-react";
 import { PROBLEMS } from "@/data/problems";
 import { COMPANIES, NEETCODE_CATEGORIES } from "@/data/company-problems";
 import { generateTestCode } from "@/lib/test-runner";
@@ -33,10 +30,6 @@ export default function InterviewPage() {
     consoleOutput,
     addLog,
     clearLogs,
-    latestReview,
-    setReview,
-    coderabbitReview,
-    setCodeRabbitReview,
     workspaceId,
     setWorkspaceId,
     workspaceStatus,
@@ -50,16 +43,12 @@ export default function InterviewPage() {
     selectedCompanyId,
     setSelectedCompanyId,
     customProblems,
+    agentDisconnect,
   } = useInterviewStore();
 
   const [mounted, setMounted] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
-  // activeTab is now controlled by the Tabs component, but we can sync it or just let Tabs handle it
-  // We keep it in state to switch programmatically when buttons are clicked
-  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
   const [isFixing, setIsFixing] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -313,52 +302,32 @@ export default function InterviewPage() {
     }
   };
 
-  const handleAnalyze = async () => {
-    setIsAnalyzing(true);
-    setActiveTab('gemini');
-    setReview(null);
-    try {
-      const res = await fetch('/api/analysis/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, language: 'python' }),
-      });
-      const json = await res.json();
-      // Handle both direct and wrapped response formats
-      const data = json.data || json;
-      setReview(data);
-    } catch (err) {
-      console.error(err);
-      addLog("Analysis failed.");
-    } finally {
-      setIsAnalyzing(false);
+  const handleEndInterview = async () => {
+    // Stop Gemini Live first
+    if (agentDisconnect) {
+      agentDisconnect();
     }
-  };
 
-  const handleCodeRabbit = async () => {
-    setIsCodeRabbitLoading(true);
-    setActiveTab('coderabbit');
-    setCodeRabbitReview(null);
-    try {
-      const res = await fetch('/api/analysis/coderabbit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          language: 'python',
-          workspaceId
-        }),
-      });
-      const json = await res.json();
-      // Handle both direct and wrapped response formats
-      const data = json.data || json;
-      setCodeRabbitReview(data);
-    } catch (err) {
-      console.error(err);
-      addLog("CodeRabbit Analysis failed.");
-    } finally {
-      setIsCodeRabbitLoading(false);
+    // Delete the sandbox workspace
+    const wsId = useInterviewStore.getState().workspaceId;
+    if (wsId) {
+      try {
+        console.log('🗑️ Deleting workspace on end interview:', wsId);
+        await fetch('/api/sandbox/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId: wsId }),
+        });
+        console.log('✅ Workspace deleted');
+        setWorkspaceId(null);
+        setWorkspaceStatus('idle');
+      } catch (err) {
+        console.warn('Failed to delete workspace:', err);
+      }
     }
+
+    // Then show the report
+    setShowReport(true);
   };
 
   if (!mounted) return null;
@@ -422,37 +391,18 @@ export default function InterviewPage() {
           {/* Right Panel: Agent & Controls */}
           <ResizablePanel defaultSize={35} minSize={20} className="bg-card border-l">
             <div className="flex flex-col h-full overflow-hidden">
-              <div className="p-4 border-b">
+              <div className="p-4 border-b flex-1">
                 <InterviewAgent />
               </div>
 
               <Controls
                 onRun={() => handleRun(code)}
-                onAnalyze={handleAnalyze}
-                onCodeRabbit={handleCodeRabbit}
                 onAutoFix={handleAutoFix}
-                onEndInterview={() => setShowReport(true)}
+                onEndInterview={handleEndInterview}
                 isRunning={isRunning}
-                isAnalyzing={isAnalyzing}
-                isCodeRabbitLoading={isCodeRabbitLoading}
                 isFixing={isFixing}
                 hasError={!!lastError}
               />
-
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
-                    <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="gemini" className="flex-1 mt-0">
-                    <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
-                  </TabsContent>
-                  <TabsContent value="coderabbit" className="flex-1 mt-0">
-                    <CodeRabbitReviewPanel result={coderabbitReview} isLoading={isCodeRabbitLoading} />
-                  </TabsContent>
-                </Tabs>
-              </div>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
