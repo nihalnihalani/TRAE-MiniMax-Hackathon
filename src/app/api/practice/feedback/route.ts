@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generatePracticeInterviewFeedback, PracticeInterviewData } from '@/lib/gemini';
+import { generatePracticeInterviewFeedback, PracticeInterviewData } from '@/lib/minimax';
 import * as Sentry from '@sentry/nextjs';
 
 export async function POST(request: Request) {

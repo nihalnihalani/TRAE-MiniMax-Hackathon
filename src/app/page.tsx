@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/ui/Logo";
-import { Mic, Code2, Sparkles, ArrowRight, Video, Lock, GraduationCap } from "lucide-react";
-import { MetricsDashboard } from "@/components/interview/MetricsDashboard";
+import { Mic, Sparkles, Lock, GraduationCap } from "lucide-react";
 import { StartInterviewButton } from "@/components/interview/StartInterviewButton";
 
 export default function Home() {
@@ -21,12 +20,7 @@ export default function Home() {
             <Logo size={32} />
             Daytona Interview Sandbox
           </div>
-          <div className="flex gap-4">
-            <Link href="/test">
-              <Button variant="ghost">Smoke Test</Button>
-            </Link>
-            <StartInterviewButton size="default" showIcon={false} />
-          </div>
+          <StartInterviewButton size="default" showIcon={false} />
         </div>
       </header>
 
@@ -34,13 +28,8 @@ export default function Home() {
 
         {/* Hero Section */}
         <div className="space-y-6 flex flex-col items-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-xs font-medium text-purple-600 animate-slide-up-fade">
-            <Sparkles className="w-3 h-3" />
-            <span>Mock Interview Mode Coming Soon</span>
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight flex flex-col items-center gap-2 pb-2">
-            <span className="animate-slide-up-fade">Meet <span className="animate-color-wave font-extrabold tracking-tight">Alexis</span></span>
+            <span className="animate-slide-up-fade">Meet <span className="animate-color-wave font-extrabold tracking-tight">Shifu</span></span>
             <span className="animate-slide-up-fade delay-200 text-4xl md:text-6xl text-muted-foreground font-normal">
               Your AI Technical Interviewer
             </span>
@@ -76,7 +65,7 @@ export default function Home() {
               </div>
               <CardTitle className="text-xl">Voice-First AI</CardTitle>
               <CardDescription className="text-base">
-                Converse naturally with Alexis using ElevenLabs' ultra-realistic voice synthesis. No typing required.
+                Converse naturally with Shifu using Gemini Live's native voice synthesis. No typing required.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -106,22 +95,12 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* Metrics Dashboard Section */}
-        <div className="w-full max-w-6xl mt-24 animate-slide-up-fade" style={{ animationDelay: '800ms' }}>
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold mb-2">Platform Metrics</h2>
-            <p className="text-muted-foreground">Real-time performance stats from our interview engine</p>
-          </div>
-          <div className="bg-muted/30 border rounded-3xl p-6">
-            <MetricsDashboard />
-          </div>
-        </div>
       </main>
 
       <footer className="border-t py-12 bg-muted/20 relative z-10">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Built with Next.js, Daytona, ElevenLabs, Gemini, and CodeRabbit.
+            Built with Next.js, Daytona, Gemini Live, and CodeRabbit.
           </p>
         </div>
       </footer>

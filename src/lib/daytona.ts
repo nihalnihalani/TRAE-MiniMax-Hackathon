@@ -81,9 +81,19 @@ function sanitizePath(path: string): string {
 
   // Allow alphanumeric, underscore, dash, dot, and forward slash
   // Absolute paths starting with / are allowed in sandbox environments
+  // BUT they must be within allowed directories to prevent system access
+  const ALLOWED_PREFIXES = ['/home', '/workspaces', '/tmp', '/app', '/usr/src/app'];
+  
   const validPathPattern = /^[a-zA-Z0-9_\-./]+$/;
   if (!validPathPattern.test(path)) {
     throw new Error('Invalid path: only alphanumeric characters, underscore, dash, dot, and forward slash are allowed');
+  }
+
+  if (path.startsWith('/')) {
+    const isAllowed = ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix));
+    if (!isAllowed) {
+      throw new Error(`Invalid path: Absolute paths must start with: ${ALLOWED_PREFIXES.join(', ')}`);
+    }
   }
 
   return path;

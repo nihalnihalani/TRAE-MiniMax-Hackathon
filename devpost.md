@@ -1,4 +1,4 @@
-# Alexis: The Voice-First AI Technical Interviewer
+# Shifu: The Voice-First AI Technical Interviewer
 
 > **Transforming the $200B Technical Hiring Industry with Daytona, ElevenLabs, and CodeRabbit**
 
@@ -15,12 +15,12 @@
 ---
 
 ## Project Name
-**Alexis: AI-Powered Technical Interview Platform**
+**Shifu: AI-Powered Technical Interview Platform**
 
 ## Tagline
 An AI interviewer that **watches you code**, **listens to your reasoning**, and **runs your solution in secure Daytona sandboxes**—delivering **94% consistency** and **50% time savings** over traditional interviews.
 
-**Built for the Daytona x ElevenLabs x CodeRabbit Hackathon**: Each sponsor technology plays an irreplaceable, deeply-integrated role in making Alexis possible.
+**Built for the Daytona x ElevenLabs x CodeRabbit Hackathon**: Each sponsor technology plays an irreplaceable, deeply-integrated role in making Shifu possible.
 
 ---
 
@@ -40,7 +40,7 @@ Technical hiring is fundamentally broken. Companies spend **$200 billion annuall
 
 ### Why This Matters RIGHT NOW
 
-Three converging trends make this the perfect moment for Alexis:
+Three converging trends make this the perfect moment for Shifu:
 
 1. **Remote-first hiring is permanent** — Companies need scalable, consistent interview processes that don't depend on engineer availability
 2. **AI tools changed the game** — Candidates can use ChatGPT, so interviews must evaluate *thinking process*, not just final output
@@ -54,7 +54,7 @@ And three breakthrough technologies make the solution possible:
 | **ElevenLabs** | Human-like conversational AI | Natural voice interaction with context |
 | **CodeRabbit** | Production-grade code review | Consistent, professional feedback |
 
-**Alexis** is the first platform to combine all three into a cohesive, production-ready interview experience.
+**Shifu** is the first platform to combine all three into a cohesive, production-ready interview experience.
 
 ---
 
@@ -204,7 +204,7 @@ class DaytonaService {
 
 **Complete Daytona SDK Feature Utilization:**
 
-| Daytona Feature | How Alexis Uses It | Business Value |
+| Daytona Feature | How Shifu Uses It | Business Value |
 |-----------------|-------------------|----------------|
 | `daytona.create()` | Instant workspace per interview | Zero setup for candidates |
 | `workspace.process.codeRun()` | Direct Python/JS execution | Real runtime behavior |
@@ -231,7 +231,7 @@ class DaytonaService {
 
 Text-based coding interviews feel like talking to a wall. Candidates type into a void with no feedback. There's no back-and-forth, no clarifying questions, no encouragement.
 
-**ElevenLabs Conversational AI** transforms Alexis into a real interviewer:
+**ElevenLabs Conversational AI** transforms Shifu into a real interviewer:
 
 ```typescript
 // src/components/InterviewAgent.tsx - Voice-first interview
@@ -310,7 +310,7 @@ export function InterviewAgent() {
 // Ctrl+Shift+X triggers scripted lines
 
 const wizardScript = [
-  "Welcome to your technical interview with Alexis.",
+  "Welcome to your technical interview with Shifu.",
   "Take your time to understand the problem.",
   "I notice you're considering a brute force approach.",
   "Let me run your code in the sandbox.",
@@ -440,7 +440,7 @@ export async function POST(request: Request) {
 
 ## Real-World Impact Metrics
 
-| Metric | Traditional | Alexis | Improvement |
+| Metric | Traditional | Shifu | Improvement |
 |--------|-------------|--------|-------------|
 | **Consistency Score** | 67% | 94% | **+27%** |
 | **Interview Duration** | 90 min | 45 min | **-50%** |
@@ -471,7 +471,7 @@ export async function POST(request: Request) {
 
 ### Why Mock Mode is Different from LeetCode
 
-| Feature | LeetCode | Alexis Mock Mode |
+| Feature | LeetCode | Shifu Mock Mode |
 |---------|----------|------------------|
 | **Feedback** | Pass/Fail | Voice coaching + code review |
 | **Execution** | Browser sandbox | Daytona (real Linux) |
@@ -513,7 +513,7 @@ LAYER 4: Synthesis for ElevenLabs
 
 ---
 
-## Why Alexis Should Win
+## Why Shifu Should Win
 
 ### 1. Perfect Sponsor Technology Synergy
 
@@ -621,7 +621,7 @@ The future of technical hiring is:
 - **AI-augmented** (not AI-replaced)
 - **Evidence-based** (not gut feelings)
 
-**Alexis** is that future, built today with **Daytona**, **ElevenLabs**, and **CodeRabbit**.
+**Shifu** is that future, built today with **Daytona**, **ElevenLabs**, and **CodeRabbit**.
 
 ---
 
