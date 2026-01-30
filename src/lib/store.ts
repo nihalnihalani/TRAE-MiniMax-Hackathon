@@ -120,6 +120,10 @@ interface InterviewState {
   practiceHistory: PracticeSession[];
   addPracticeSession: (session: PracticeSession) => void;
   clearPracticeHistory: () => void;
+
+  // Agent disconnect callback (for ending interview)
+  agentDisconnect: (() => void) | null;
+  setAgentDisconnect: (callback: (() => void) | null) => void;
 }
 
 export const useInterviewStore = create<InterviewState>()(
@@ -227,6 +231,10 @@ export const useInterviewStore = create<InterviewState>()(
         practiceHistory: [...state.practiceHistory, session]
       })),
       clearPracticeHistory: () => set({ practiceHistory: [] }),
+
+      // Agent disconnect callback
+      agentDisconnect: null,
+      setAgentDisconnect: (callback) => set({ agentDisconnect: callback }),
     }),
     {
       name: 'interview-storage',
