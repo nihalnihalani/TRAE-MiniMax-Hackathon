@@ -100,7 +100,7 @@ jobs:
           echo "### Features Implemented & Tested" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Phase 1 - Critical (Demo-Ready)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Gemini retry logic with exponential backoff" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ MiniMax retry logic with exponential backoff" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Rate limiting middleware (token bucket algorithm)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Workspace progress indicator component" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ User-friendly error messages" >> $GITHUB_STEP_SUMMARY
@@ -114,5 +114,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### External Integrations" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Daytona SDK for secure sandboxes" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Gemini AI for code analysis & auto-fix" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ MiniMax AI for code analysis & auto-fix" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ ElevenLabs for text-to-speech" >> $GITHUB_STEP_SUMMARY
