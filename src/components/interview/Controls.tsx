@@ -64,12 +64,12 @@ export function Controls({
           onClick={onAnalyze}
           disabled={isAnalyzing}
           aria-busy={isAnalyzing}
-          aria-label={isAnalyzing ? "Analyzing with Gemini" : "Quick review with Gemini"}
+          aria-label={isAnalyzing ? "Analyzing with MiniMax" : "Quick review with MiniMax"}
           variant="secondary"
           className="w-full"
         >
           <Sparkles className="w-4 h-4 mr-2" aria-hidden="true" />
-          {isAnalyzing ? "Gemini..." : "Quick Review"}
+          {isAnalyzing ? "MiniMax..." : "Quick Review"}
         </Button>
 
         <Button

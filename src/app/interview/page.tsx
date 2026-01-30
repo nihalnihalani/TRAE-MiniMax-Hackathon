@@ -57,7 +57,7 @@ export default function InterviewPage() {
   const [isCodeRabbitLoading, setIsCodeRabbitLoading] = useState(false);
   // activeTab is now controlled by the Tabs component, but we can sync it or just let Tabs handle it
   // We keep it in state to switch programmatically when buttons are clicked
-  const [activeTab, setActiveTab] = useState<'gemini' | 'coderabbit'>('gemini');
+  const [activeTab, setActiveTab] = useState<'minimax' | 'coderabbit'>('minimax');
   const [isFixing, setIsFixing] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -264,7 +264,7 @@ export default function InterviewPage() {
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
-    setActiveTab('gemini');
+    setActiveTab('minimax');
     setReview(null);
     try {
       const res = await fetch('/api/analysis/review', {
@@ -391,10 +391,10 @@ export default function InterviewPage() {
               <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full flex-1 flex flex-col">
                   <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="gemini">Gemini Analysis</TabsTrigger>
+                    <TabsTrigger value="minimax">MiniMax Analysis</TabsTrigger>
                     <TabsTrigger value="coderabbit">CodeRabbit</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="gemini" className="flex-1 mt-0">
+                  <TabsContent value="minimax" className="flex-1 mt-0">
                     <AnalysisPanel result={latestReview} isLoading={isAnalyzing} />
                   </TabsContent>
                   <TabsContent value="coderabbit" className="flex-1 mt-0">

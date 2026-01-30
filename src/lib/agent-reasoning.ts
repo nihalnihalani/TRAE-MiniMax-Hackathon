@@ -1,5 +1,5 @@
 import { Mutex } from 'async-mutex';
-import { analyzeCodeWithGemini } from './gemini';
+import { analyzeCodeWithMiniMax } from './minimax';
 import { COMPLEXITY_HIGH, COMPLEXITY_MEDIUM, MAX_HINTS } from './constants';
 
 /**
@@ -164,7 +164,7 @@ export class AgentReasoning {
     }
 
     /**
-     * Deep code analysis using Gemini AI with fallback to heuristics
+     * Deep code analysis using MiniMax AI with fallback to heuristics
      */
     private async deepAnalysis(code: string, language: string): Promise<CodeAnalysis> {
         // Initial fallback analysis structure
@@ -180,13 +180,13 @@ export class AgentReasoning {
         };
 
         try {
-            // Use Gemini for deep semantic analysis
-            const aiResult = await analyzeCodeWithGemini(code, language);
+            // Use MiniMax for deep semantic analysis
+            const aiResult = await analyzeCodeWithMiniMax(code, language);
 
             // Map AI result to our internal structure
             analysis.complexityScore = aiResult.score ? (10 - aiResult.score) * 2 : 0; // Inverse score mapping
 
-            // Heuristic for missing dependencies (Gemini might miss specific import checks)
+            // Heuristic for missing dependencies (MiniMax might miss specific import checks)
             const importMatches = code.match(/import\s+(\w+)|from\s+(\w+)\s+import/g);
             const commonPackages = ['numpy', 'pandas', 'requests', 'flask', 'django', 'matplotlib', 'scipy'];
             if (importMatches) {

@@ -163,7 +163,7 @@ export const FileOperationRequestSchema = z.object({
 // Response Schemas (for validation of external API responses)
 // ============================================================================
 
-export const GeminiAnalysisResponseSchema = z.object({
+export const MiniMaxAnalysisResponseSchema = z.object({
     score: z.number().min(0).max(10),
     security_score: z.number().min(0).max(10),
     complexity: z.string(),
@@ -195,7 +195,7 @@ export type TestCodeRequest = z.infer<typeof TestCodeRequestSchema>;
 export type TTSRequest = z.infer<typeof TTSRequestSchema>;
 export type ListFilesQuery = z.infer<typeof ListFilesQuerySchema>;
 export type FileOperationRequest = z.infer<typeof FileOperationRequestSchema>;
-export type GeminiAnalysisResponse = z.infer<typeof GeminiAnalysisResponseSchema>;
+export type MiniMaxAnalysisResponse = z.infer<typeof MiniMaxAnalysisResponseSchema>;
 export type AutoFixResponse = z.infer<typeof AutoFixResponseSchema>;
 
 // ============================================================================

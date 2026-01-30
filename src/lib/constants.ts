@@ -36,8 +36,8 @@ export const DEFAULT_RETRY_CONFIG = {
   backoffMultiplier: 2,
 } as const;
 
-// Gemini AI Retry Configuration
-export const GEMINI_RETRY_CONFIG = {
+// AI Retry Configuration
+export const AI_RETRY_CONFIG = {
   maxAttempts: 3,
   initialDelayMs: 1000,
   maxDelayMs: 8000,

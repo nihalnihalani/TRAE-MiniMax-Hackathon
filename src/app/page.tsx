@@ -36,7 +36,7 @@ export default function Home() {
           </h1>
 
           <p className="text-xl text-muted-foreground max-w-2xl animate-slide-up-fade leading-relaxed" style={{ animationDelay: '400ms' }}>
-            Experience the future of technical hiring with a voice-first AI agent powered by Gemini 3 Pro.
+            Experience the future of technical hiring with a voice-first AI agent powered by MiniMax M2.1.
             Real-time coding, deep analysis, and instant feedback in a secure Daytona sandbox.
           </p>
 
@@ -65,7 +65,7 @@ export default function Home() {
               </div>
               <CardTitle className="text-xl">Voice-First AI</CardTitle>
               <CardDescription className="text-base">
-                Converse naturally with Shifu using Gemini Live's native voice synthesis. No typing required.
+                Converse naturally with Shifu using MiniMax Live's native voice synthesis. No typing required.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -87,7 +87,7 @@ export default function Home() {
               <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                 <Sparkles className="w-6 h-6 text-purple-500" />
               </div>
-              <CardTitle className="text-xl">Gemini 3 Pro Analysis</CardTitle>
+              <CardTitle className="text-xl">MiniMax M2.1 Analysis</CardTitle>
               <CardDescription className="text-base">
                 Receive comprehensive feedback on code quality, complexity, and security instantly.
               </CardDescription>
@@ -100,7 +100,7 @@ export default function Home() {
       <footer className="border-t py-12 bg-muted/20 relative z-10">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Built with Next.js, Daytona, Gemini Live, and CodeRabbit.
+            Built with Next.js, Daytona, MiniMax Live, and CodeRabbit.
           </p>
         </div>
       </footer>

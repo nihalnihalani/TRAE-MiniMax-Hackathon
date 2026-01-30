@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { textToSpeech, callMiniMax } from '@/lib/minimax';
+import { textToSpeech, callMiniMax, CHAT_MODEL_NAME } from '@/lib/minimax';
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Call MiniMax LLM
     console.log("🤖 Calling MiniMax LLM...");
-    const aiResponseText = await callMiniMax(messages);
+    const aiResponseText = await callMiniMax(messages, 0.7, CHAT_MODEL_NAME);
     console.log("🤖 AI Response:", aiResponseText);
 
     // 3. Call MiniMax TTS

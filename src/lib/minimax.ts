@@ -8,6 +8,7 @@ const MINIMAX_GROUP_ID = process.env.MINIMAX_GROUP_ID || "";
 
 // Using MiniMax-M2.1 for code generation and refactoring as requested
 const MODEL_NAME = "MiniMax-M2.1";
+export const CHAT_MODEL_NAME = "MiniMax-M2.1-lightning";
 
 // ============================================================================
 // Input Sanitization
@@ -49,13 +50,13 @@ interface MiniMaxResponse {
   };
 }
 
-export async function callMiniMax(messages: MiniMaxMessage[], temperature = 0.7): Promise<string> {
+export async function callMiniMax(messages: MiniMaxMessage[], temperature = 0.7, model = MODEL_NAME): Promise<string> {
   if (!MINIMAX_API_KEY) {
     console.warn("MINIMAX_API_KEY is not set");
   }
 
   const payload = {
-    model: MODEL_NAME,
+    model: model,
     messages: messages,
     temperature: temperature,
     tokens_to_generate: 4096,
@@ -99,7 +100,7 @@ export async function textToSpeech(text: string, voiceId = "male-qn-qingse"): Pr
   }
 
   const payload = {
-    model: "speech-01-turbo", // or speech-02-turbo
+    model: "speech-2.6-turbo", 
     voice_setting: {
       voice_id: voiceId,
       speed: 1.0,

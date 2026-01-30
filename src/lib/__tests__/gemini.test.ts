@@ -1,15 +1,15 @@
 /**
- * Gemini Integration Tests
+ * MiniMax Integration Tests
  *
  * Tests for retry logic, JSON parsing fallbacks, and error handling
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// We'll test the internal functions by importing from gemini
+// We'll test the internal functions by importing from minimax
 // For now, test the exported functions with mocked fetch
 
-describe('Gemini Retry Logic', () => {
+describe('MiniMax Retry Logic', () => {
     const originalFetch = global.fetch;
 
     beforeEach(() => {
@@ -243,16 +243,16 @@ describe('Gemini Retry Logic', () => {
     });
 });
 
-describe('Gemini API Integration', () => {
+describe('MiniMax API Integration', () => {
     // Skip actual API tests unless explicitly enabled
     const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true' &&
-        process.env.GOOGLE_AI_API_KEY;
+        process.env.MINIMAX_API_KEY;
 
     describe.skipIf(!runIntegration)('Live API Tests', () => {
         it('should analyze code with real API', async () => {
-            const { analyzeCodeWithGemini } = await import('../gemini');
+            const { analyzeCodeWithMiniMax } = await import('../minimax');
 
-            const result = await analyzeCodeWithGemini(
+            const result = await analyzeCodeWithMiniMax(
                 'def add(a, b): return a + b',
                 'python'
             );
