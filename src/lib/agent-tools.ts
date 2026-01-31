@@ -98,7 +98,7 @@ export const getAgentTools = (workspaceId: string | null) => ({
         // Find current problem from either source
         const currentProblem = getCurrentProblem();
         const testCode = currentProblem
-            ? generateTestCode(currentProblem, code)
+            ? generateTestCode(currentProblem, code, language)
             : code;
 
         const response = await fetch('/api/sandbox/execute', {

@@ -1,5 +1,11 @@
 import * as Sentry from "@sentry/nextjs";
 import { CoachingFeedback, DEFAULT_COACHING_FEEDBACK, calculateSkillLevel } from "./coaching";
+import {
+  DEFAULT_TTS_MODEL,
+  FAST_TTS_MODEL,
+  DEFAULT_MINIMAX_VOICE,
+  TTS_AUDIO_SETTINGS,
+} from "./constants";
 
 /**
  * MiniMax model usage (platform.minimax.io docs):
@@ -21,6 +27,10 @@ const MINIMAX_TTS_URL = MINIMAX_TTS_BASE.includes("api.minimax.io")
 const MINIMAX_API_KEY = (process.env.MINIMAX_API_KEY || "").trim();
 const MINIMAX_GROUP_ID = (process.env.MINIMAX_GROUP_ID || "").trim();
 const USE_OFFICIAL_IO = MINIMAX_API_BASE.includes("api.minimax.io"); 
+
+const MINIMAX_TTS_WS_URL = MINIMAX_TTS_BASE.includes("api.minimax.io")
+  ? MINIMAX_TTS_BASE.replace(/^https:\/\//, "wss://").replace(/\/$/, "") + "/ws/v1/t2a_v2"
+  : null;
 
 // Using MiniMax-M2.1 for code generation and refactoring as requested
 const MODEL_NAME = "MiniMax-M2.1";
@@ -68,11 +78,23 @@ interface MiniMaxResponse {
 
 // Convert to official api.minimax.io format (role/content) when using .io
 // NOTE: Do NOT include a "name" field — distinct names cause "group chat not supported" errors.
+// Consecutive messages with the same role are merged to avoid "group chat not supported" errors.
 function toOfficialMessages(messages: MiniMaxMessage[]): { role: string; content: string }[] {
-  return messages.map((m) => {
+  const mapped = messages.map((m) => {
     const role = m.sender_type === "BOT" ? "assistant" : (m.sender_name === "System" ? "system" : "user");
     return { role, content: m.text };
   });
+
+  // Merge consecutive messages with the same role (M2-her rejects them as "group chat")
+  const merged: { role: string; content: string }[] = [];
+  for (const msg of mapped) {
+    if (merged.length > 0 && merged[merged.length - 1].role === msg.role) {
+      merged[merged.length - 1].content += "\n\n" + msg.content;
+    } else {
+      merged.push({ ...msg });
+    }
+  }
+  return merged;
 }
 
 export async function callMiniMax(messages: MiniMaxMessage[], temperature = 0.7, model = MODEL_NAME): Promise<string> {
@@ -127,13 +149,98 @@ export async function callMiniMax(messages: MiniMaxMessage[], temperature = 0.7,
   return data.reply || "";
 }
 
-export async function textToSpeech(text: string, voiceId = "English_Gentle-voiced_man"): Promise<ArrayBuffer> {
+/** Yields text chunks from MiniMax LLM. */
+export async function* callMiniMaxStream(
+  messages: MiniMaxMessage[],
+  temperature = 0.7,
+  model = CHAT_MODEL_NAME
+): AsyncGenerator<string, void, unknown> {
+  if (!MINIMAX_API_KEY) throw new Error("MINIMAX_API_KEY is not set.");
+
+  const url = MINIMAX_API_URL;
+  const payload = USE_OFFICIAL_IO
+    ? {
+        model: "M2-her",
+        messages: toOfficialMessages(messages),
+        temperature,
+        top_p: 0.95,
+        max_tokens: 1024,
+        stream: true,
+      }
+    : {
+        model,
+        messages,
+        temperature,
+        tokens_to_generate: 4096,
+        stream: true,
+      };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${MINIMAX_API_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`MiniMax LLM Stream Error (${response.status}): ${errorText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Failed to get reader from LLM stream response");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const cleanLine = line.trim();
+      if (!cleanLine || !cleanLine.startsWith("data:")) continue;
+      
+      const jsonStr = cleanLine.replace(/^data:\s*/, "");
+      if (jsonStr === "[DONE]") return;
+
+      try {
+        const json = JSON.parse(jsonStr);
+        // Official .io format (M2-her)
+        if (json.choices?.[0]?.delta?.content) {
+          yield json.choices[0].delta.content;
+        } 
+        // .chat or other formats
+        else if (json.choices?.[0]?.messages?.[0]?.text) {
+          yield json.choices[0].messages[0].text;
+        }
+        else if (json.reply) {
+          yield json.reply;
+        }
+      } catch (e) {
+        // Ignore parse errors for incomplete chunks
+      }
+    }
+  }
+}
+
+export async function textToSpeech(
+  text: string,
+  voiceId: string = DEFAULT_MINIMAX_VOICE,
+  model: string = DEFAULT_TTS_MODEL
+): Promise<ArrayBuffer> {
   if (!MINIMAX_API_KEY) {
     throw new Error("MINIMAX_API_KEY is not set");
   }
 
   const payload: Record<string, unknown> = {
-    model: "speech-2.6-turbo",
+    model,
     voice_setting: {
       voice_id: voiceId,
       speed: 1.0,
@@ -141,10 +248,10 @@ export async function textToSpeech(text: string, voiceId = "English_Gentle-voice
       pitch: 0,
     },
     audio_setting: {
-      sample_rate: 32000,
-      bitrate: 128000,
-      format: "mp3",
-      channel: 1,
+      sample_rate: TTS_AUDIO_SETTINGS.sample_rate,
+      bitrate: TTS_AUDIO_SETTINGS.bitrate,
+      format: TTS_AUDIO_SETTINGS.format,
+      channel: TTS_AUDIO_SETTINGS.channel,
     },
     pronunciation_dict: {
       tone: [],
@@ -194,18 +301,14 @@ export async function textToSpeech(text: string, voiceId = "English_Gentle-voice
   return await response.arrayBuffer();
 }
 
-// ============================================================================
-// Streaming TTS (WebSocket) - for lower latency, stream audio chunks
-// ============================================================================
-
-const MINIMAX_TTS_WS_URL = MINIMAX_TTS_BASE.includes("api.minimax.io")
-  ? MINIMAX_TTS_BASE.replace(/^https:\/\//, "wss://").replace(/\/$/, "") + "/ws/v1/t2a_v2"
-  : null;
-
-/** Yields audio chunks (Uint8Array) from MiniMax WebSocket TTS. Only works when using api.minimax.io. */
-export async function* textToSpeechStream(
-  text: string,
-  voiceId = "English_Gentle-voiced_man"
+/** 
+ * Advanced Streaming TTS (WebSocket) - Pipes a text stream directly into MiniMax TTS.
+ * This version handles the WebSocket lifecycle and feeds text chunks as they arrive from the LLM.
+ */
+export async function* textToSpeechStreamV2(
+  textStream: AsyncIterable<string>,
+  voiceId: string = DEFAULT_MINIMAX_VOICE,
+  model: string = FAST_TTS_MODEL
 ): AsyncGenerator<Uint8Array, void, unknown> {
   if (!MINIMAX_API_KEY) throw new Error("MINIMAX_API_KEY is not set");
   if (!MINIMAX_TTS_WS_URL) throw new Error("Streaming TTS is only supported with api.minimax.io");
@@ -215,13 +318,9 @@ export async function* textToSpeechStream(
     url: string,
     opts?: { headers: Record<string, string> }
   ) => { on: (ev: string, fn: (data?: Buffer) => void) => void; send: (data: string) => void; close: () => void };
+  
   const ws = new Ws(MINIMAX_TTS_WS_URL, {
     headers: { Authorization: `Bearer ${MINIMAX_API_KEY}` },
-  });
-
-  const open = new Promise<void>((resolve, reject) => {
-    ws.on("open", () => resolve());
-    ws.on("error", (err: unknown) => reject(err));
   });
 
   const messages: Buffer[] = [];
@@ -236,22 +335,55 @@ export async function* textToSpeechStream(
     }
   });
 
+  const open = new Promise<void>((resolve, reject) => {
+    ws.on("open", () => resolve());
+    ws.on("error", (err: unknown) => reject(err));
+  });
+
   await open;
 
   const taskStart = {
     event: "task_start",
-    model: "speech-2.6-turbo",
-    voice_setting: { voice_id: voiceId, speed: 1, vol: 1, pitch: 0 },
-    audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
+    model,
+    voice_setting: { voice_id: voiceId, speed: 1.05, vol: 1, pitch: 0 }, // slightly faster for live feel
+    audio_setting: {
+      sample_rate: TTS_AUDIO_SETTINGS.sample_rate,
+      bitrate: TTS_AUDIO_SETTINGS.bitrate,
+      format: TTS_AUDIO_SETTINGS.format,
+      channel: TTS_AUDIO_SETTINGS.channel,
+    },
     pronunciation_dict: { tone: [], phoneme: [] },
-    continuous_sound: false,
+    continuous_sound: true, // Important for streaming
   };
   ws.send(JSON.stringify(taskStart));
 
-  let taskStarted = false;
-  let sentContinue = false;
+  let isFinished = false;
 
-  while (true) {
+  // Background task to feed text into WebSocket
+  (async () => {
+    try {
+      let sentenceBuffer = "";
+      for await (const chunk of textStream) {
+        sentenceBuffer += chunk;
+        // MiniMax TTS performs best with complete thoughts. 
+        // We send text when we see punctuation or if the buffer gets large.
+        if (/[.!?\n]/.test(chunk) || sentenceBuffer.length > 50) {
+          ws.send(JSON.stringify({ event: "task_continue", text: sentenceBuffer }));
+          sentenceBuffer = "";
+        }
+      }
+      if (sentenceBuffer.trim()) {
+        ws.send(JSON.stringify({ event: "task_continue", text: sentenceBuffer }));
+      }
+      ws.send(JSON.stringify({ event: "task_finish" }));
+    } catch (err) {
+      console.error("Error feeding text to TTS WS:", err);
+      ws.close();
+    }
+  })();
+
+  // Main loop to yield audio chunks received from WebSocket
+  while (!isFinished) {
     while (messages.length > 0) {
       const raw = messages.shift()!;
       let obj: { event?: string; data?: { audio?: string }; base_resp?: { status_code: number } };
@@ -260,16 +392,17 @@ export async function* textToSpeechStream(
       } catch {
         continue;
       }
-      if (obj.event === "task_started") taskStarted = true;
+
       if (obj.event === "task_failed" || (obj.base_resp && obj.base_resp.status_code !== 0)) {
         ws.close();
-        console.error("MiniMax TTS WebSocket task failed", JSON.stringify(obj, null, 2));
         throw new Error(`MiniMax TTS WebSocket task failed: ${JSON.stringify(obj)}`);
       }
+      
       if (obj.event === "task_finished") {
-        ws.close();
-        return;
+        isFinished = true;
+        break;
       }
+
       if (obj.data?.audio) {
         const hex = obj.data.audio;
         const bytes = new Uint8Array(hex.length / 2);
@@ -277,13 +410,13 @@ export async function* textToSpeechStream(
         yield bytes;
       }
     }
-    if (taskStarted && !sentContinue) {
-      sentContinue = true;
-      ws.send(JSON.stringify({ event: "task_continue", text }));
-      ws.send(JSON.stringify({ event: "task_finish" }));
+
+    if (!isFinished) {
+      await waitNext();
     }
-    await waitNext();
   }
+
+  ws.close();
 }
 
 // ============================================================================
@@ -577,7 +710,7 @@ export async function generateInterviewReport(
       ).join('; ')
     : 'No tests executed';
 
-  const systemPrompt = 'You are a senior technical interviewer. Generate a comprehensive interview evaluation report. Output only valid JSON.';
+  const systemPrompt = 'You are a senior technical interviewer. Generate a comprehensive interview evaluation report. Your evaluation should be based on the candidate\'s code AND their ability to communicate, respond to hints, and answer clarifying questions during the conversation. Output only valid JSON.';
   const userPrompt = `
 PROBLEM: ${data.problemId || 'Unknown'}
 LANGUAGE: ${sanitizedLanguage}
@@ -593,6 +726,11 @@ ${testResultsSection}
 
 INTEGRITY:
 Score: ${integrityScore}/100 (low score may indicate tab switching or pasting; factor into fairness of the evaluation).
+
+EVALUATION CRITERIA:
+1. Technical Skill: Code correctness, complexity (Big O), and idiomatic use of the language.
+2. Problem Solving: How the candidate handled your questions, if they understood your hints, and how they pivoted their approach based on feedback.
+3. Communication: Clarity of explanation, natural flow of conversation, and ability to articulate their thought process.
 
 OUTPUT JSON ONLY:
 {

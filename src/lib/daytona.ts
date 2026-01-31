@@ -353,13 +353,36 @@ export class DaytonaService {
       return;
     }
 
-    try {
-      const workspace = await this.getWorkspace(workspaceId);
-      await workspace.delete();
-      this.invalidateCache(workspaceId);
-    } catch (error) {
-      console.error('Failed to cleanup workspace:', error);
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY = 2000;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const workspace = await this.getWorkspace(workspaceId);
+        await workspace.delete();
+        this.invalidateCache(workspaceId);
+        return;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+
+        // Already deleted — nothing to do
+        if (msg.includes('not found')) {
+          this.invalidateCache(workspaceId);
+          return;
+        }
+
+        // Transient state error — retry after delay
+        if (msg.includes('state change in progress') && attempt < MAX_ATTEMPTS) {
+          console.warn(`Workspace ${workspaceId} state change in progress, retrying in ${RETRY_DELAY}ms (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+          await this.sleep(RETRY_DELAY);
+          continue;
+        }
+
+        console.error('Failed to cleanup workspace:', error);
+        return; // Best-effort — don't throw
+      }
     }
+    console.warn(`Failed to cleanup workspace ${workspaceId} after ${MAX_ATTEMPTS} attempts`);
   }
 
   // ==========================================================================

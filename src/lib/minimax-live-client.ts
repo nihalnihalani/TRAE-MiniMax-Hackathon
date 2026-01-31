@@ -1,6 +1,7 @@
 /**
  * MiniMax Live Client
- * Replaces GeminiLiveClient using MiniMax REST API (LLM + TTS) and Browser STT.
+ * Voice interview client using MediaRecorder + server-side STT (Deepgram)
+ * and MiniMax REST API (LLM + TTS) for responses.
  */
 
 export type InterviewMode = 'real' | 'practice';
@@ -12,20 +13,31 @@ export interface ProblemContext {
   description: string;
   constraints: string[];
   functionName: string;
-  examples: any[]; // Added to match interface
+  examples: any[];
   starterCode?: string;
   companyName?: string;
   tags?: string[];
 }
 
 export class MiniMaxLiveClient {
-  private recognition: any = null; // SpeechRecognition
   private audioContext: AudioContext | null = null;
+  private mediaStream: MediaStream | null = null;
+  private mediaRecorder: MediaRecorder | null = null;
+  private analyserNode: AnalyserNode | null = null;
+  private currentAudioSource: AudioBufferSourceNode | null = null;
+  private nextStartTime = 0;
+  private audioChunks: Blob[] = [];
   private isListening = false;
+  private isSpeechDetected = false;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private animFrameId: number | null = null;
   private interviewMode: InterviewMode = 'real';
   private problemContext: ProblemContext | null = null;
   private history: { role: 'user' | 'model'; content: string }[] = [];
   private lastCodeContext = "";
+  private sttDisabled = false; // Set true when server reports missing API key
+  private abortController: AbortController | null = null;
+  private _isModelSpeaking = false;
 
   // Callbacks
   public onStatusChange: (status: ConnectionStatus) => void = () => {};
@@ -37,6 +49,11 @@ export class MiniMaxLiveClient {
   public onTurnEnd: () => void = () => {};
   public onModelSpeaking: (isSpeaking: boolean) => void = () => {};
   public onNoResponse: () => void = () => {};
+
+  // Silence detection tuning
+  private readonly SPEECH_THRESHOLD = 0.04;
+  private readonly SILENCE_DURATION = 1500; // 1.5s silence = end of utterance
+  private readonly MIN_AUDIO_SIZE = 4000;   // Skip tiny blobs (noise/cough)
 
   constructor(private apiKey: string, mode: InterviewMode = 'real') {
     this.interviewMode = mode;
@@ -55,199 +72,403 @@ export class MiniMaxLiveClient {
   }
 
   isConnected() {
-      return this.isListening || (this.recognition !== null);
+    return this.isListening || this.mediaStream !== null;
   }
+
+  // ──────────────────────────────────────────────
+  // Connection lifecycle
+  // ──────────────────────────────────────────────
 
   async connect() {
     this.onStatusChange('connecting');
     try {
-      // Initialize AudioContext for playback
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.audioContext = new AudioContextClass();
+      // Request microphone
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
 
-      // Initialize Speech Recognition
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        throw new Error("Speech Recognition not supported in this browser (try Chrome)");
+      // AudioContext for playback + analysis
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      this.audioContext = new AC();
+
+      // AnalyserNode for volume meter + silence detection
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      this.analyserNode = this.audioContext.createAnalyser();
+      this.analyserNode.fftSize = 256;
+      source.connect(this.analyserNode);
+
+      this.onStatusChange('connected');
+
+      // Preflight check: is STT available?
+      try {
+        const sttCheck = await fetch('/api/stt');
+        const sttStatus = await sttCheck.json();
+        if (!sttStatus.available) {
+          this.sttDisabled = true;
+          console.warn("🔇 STT not available — DEEPGRAM_API_KEY not configured. Voice input disabled.");
+        }
+      } catch {
+        // If preflight fails, we'll discover STT status on first POST
       }
 
-      this.recognition = new SpeechRecognition();
-      this.recognition.continuous = false; // Turn-based
-      this.recognition.interimResults = true;
-      this.recognition.lang = 'en-US';
+      // Begin capturing audio (if STT is available)
+      if (!this.sttDisabled) {
+        this.startListening();
+      }
 
-      this.recognition.onstart = () => {
-        console.log("🎤 Listening...");
-      };
-
-      this.recognition.onresult = async (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-        
-        if (finalTranscript) {
-           this.handleUserMessage(finalTranscript);
-        }
-      };
-
-      this.recognition.onerror = (event: any) => {
-        console.error("Speech Recognition Error:", event.error);
-        if (event.error === 'not-allowed') {
-           this.onError(new Error("Microphone permission denied"));
-        }
-      };
-      
-      this.recognition.onend = () => {
-          if (this.isListening) {
-              try {
-                  this.recognition.start();
-              } catch {
-                  // ignore
-              }
-          }
-      };
-
-      this.startListening();
-      this.onStatusChange('connected');
-      
-      // Initial Greeting
+      // Kick off the interview — tell the AI to read the full coding problem
       setTimeout(() => {
-          this.handleUserMessage("Hello, I'm ready for the interview.", true);
+        this.handleUserMessage(
+          "Start the interview. Read the COMPLETE coding problem description out loud — include the full description, walk through an example with specific numbers, and mention the constraints. Then ask if I have any questions before coding.",
+          true,
+        );
       }, 1000);
-
     } catch (error) {
       console.error("Connection failed:", error);
       this.onStatusChange('error');
-      this.onError(error instanceof Error ? error : new Error("Failed to connect"));
-    }
-  }
-
-  startListening() {
-    if (this.recognition && !this.isListening) {
-      try {
-        this.recognition.start();
-        this.isListening = true;
-      } catch (e) {
-        // Already started
-      }
-    }
-  }
-
-  stopListening() {
-    if (this.recognition) {
-      this.recognition.stop();
-      this.isListening = false;
-    }
-  }
-
-  async handleUserMessage(text: string, silent = false) {
-    // Stop listening while processing to avoid hearing self
-    this.stopListening();
-    this.onModelSpeaking(true);
-
-    try {
-      const response = await fetch('/api/interview/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          history: this.history,
-          context: this.lastCodeContext
-        })
-      });
-
-      if (!response.ok) throw new Error("Chat API failed");
-
-      const data = await response.json();
-      
-      if (!silent) {
-        this.history.push({ role: 'user', content: text });
-      }
-      this.history.push({ role: 'model', content: data.text });
-
-      this.onMessage(data.text);
-
-      if (data.audio) {
-        await this.playAudio(data.audio);
-      }
-      
-      this.onTurnEnd();
-
-    } catch (error) {
-      console.error("Chat error:", error);
-      this.onError(error instanceof Error ? error : new Error("Chat failed"));
-    } finally {
-      this.onModelSpeaking(false);
-      this.startListening(); 
-    }
-  }
-
-  async playAudio(base64Audio: string) {
-    if (!this.audioContext) return;
-    
-    try {
-      const binaryString = window.atob(base64Audio);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.audioContext.destination);
-      source.start(0);
-      
-      // Visualize volume
-      // Simplified visualization for now
-      this.onVolume(0.5); 
-      
-      return new Promise<void>((resolve) => {
-        source.onended = () => {
-            this.onVolume(0);
-            resolve();
-        };
-      });
-    } catch (e) {
-      console.error("Audio playback error:", e);
+      this.onError(
+        error instanceof Error ? error : new Error("Failed to connect"),
+      );
     }
   }
 
   disconnect() {
     this.stopListening();
-    this.recognition = null;
+
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach((t) => t.stop());
+      this.mediaStream = null;
+    }
+
+    this.mediaRecorder = null;
+    this.analyserNode = null;
+
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
+
     this.onStatusChange('disconnected');
   }
+
+  // ──────────────────────────────────────────────
+  // Audio capture & silence detection
+  // ──────────────────────────────────────────────
+
+  startListening() {
+    if (!this.mediaStream || this.isListening) return;
+    this.isListening = true;
+    this.beginRecording();
+    this.runSilenceDetection();
+  }
+
+  stopListening() {
+    this.isListening = false;
+    this.audioChunks = []; // discard partial recording
+
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+    if (this.mediaRecorder?.state === 'recording') {
+      try { this.mediaRecorder.stop(); } catch { /* ignore */ }
+    }
+  }
+
+  private beginRecording() {
+    if (!this.mediaStream) return;
+
+    this.audioChunks = [];
+    this.isSpeechDetected = false;
+
+    try {
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+
+      this.mediaRecorder = new MediaRecorder(
+        this.mediaStream,
+        mimeType ? { mimeType } : undefined,
+      );
+
+      this.mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) this.audioChunks.push(e.data);
+      };
+
+      this.mediaRecorder.onstop = () => {
+        this.processRecording();
+      };
+
+      this.mediaRecorder.start(100); // chunk every 100 ms
+    } catch (err) {
+      console.error("MediaRecorder start failed:", err);
+    }
+  }
+
+  private runSilenceDetection() {
+    if (!this.analyserNode || !this.isListening) return;
+
+    const buf = new Uint8Array(this.analyserNode.frequencyBinCount);
+    this.analyserNode.getByteFrequencyData(buf);
+    const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+    const vol = avg / 255;
+
+    this.onVolume(vol);
+
+    if (vol > this.SPEECH_THRESHOLD) {
+      // Audible speech
+      if (this._isModelSpeaking && !this.isSpeechDetected) {
+        console.log("🤫 Interruption detected!");
+        if (this.abortController) {
+          this.abortController.abort();
+        }
+        this.clearAudioQueue();
+        this.onInterrupted();
+      }
+
+      this.isSpeechDetected = true;
+      if (this.silenceTimer) {
+        clearTimeout(this.silenceTimer);
+        this.silenceTimer = null;
+      }
+    } else if (this.isSpeechDetected && !this.silenceTimer) {
+      // Speech just ended — wait SILENCE_DURATION before finalizing
+      this.silenceTimer = setTimeout(() => {
+        this.silenceTimer = null;
+        if (this.mediaRecorder?.state === 'recording' && this.isSpeechDetected) {
+          this.isSpeechDetected = false;
+          this.mediaRecorder.stop(); // triggers processRecording()
+        }
+      }, this.SILENCE_DURATION);
+    }
+
+    this.animFrameId = requestAnimationFrame(() => this.runSilenceDetection());
+  }
+
+  // ──────────────────────────────────────────────
+  // Transcription (server-side via Deepgram)
+  // ──────────────────────────────────────────────
+
+  private async processRecording() {
+    if (this.audioChunks.length === 0 || this.sttDisabled) {
+      if (this.isListening && !this.sttDisabled) this.beginRecording();
+      return;
+    }
+
+    const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+    this.audioChunks = [];
+
+    if (blob.size < this.MIN_AUDIO_SIZE) {
+      if (this.isListening) this.beginRecording();
+      return;
+    }
+
+    try {
+      const fd = new FormData();
+      fd.append('audio', blob, 'recording.webm');
+
+      const res = await fetch('/api/stt', { method: 'POST', body: fd });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'STT failed' }));
+        const errMsg = errData.error || 'STT failed';
+        // If the server says the API key is missing, stop all future STT attempts
+        if (errMsg.includes('not set') || errMsg.includes('API_KEY')) {
+          console.warn("🔇 STT disabled — API key not configured. Voice input unavailable.");
+          this.sttDisabled = true;
+          this.onError(new Error("Speech-to-text API key not configured. Add DEEPGRAM_API_KEY to .env.local"));
+          return;
+        }
+        throw new Error(errMsg);
+      }
+
+      const { text } = await res.json();
+
+      if (text && text.trim()) {
+        console.log("🗣️ You said:", text.trim());
+        await this.handleUserMessage(text.trim());
+        return; // handleUserMessage restarts listening in finally
+      }
+    } catch (err) {
+      console.error("Transcription error:", err);
+    }
+
+    // Restart recording if we didn't enter handleUserMessage
+    if (this.isListening && !this.sttDisabled) this.beginRecording();
+  }
+
+  // ──────────────────────────────────────────────
+  // Chat turn (LLM + TTS via MiniMax Streaming)
+  // ──────────────────────────────────────────────
+
+  async handleUserMessage(text: string, silent = false) {
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    this.abortController = new AbortController();
+
+    this.stopListening();
+    this.clearAudioQueue();
+    this._isModelSpeaking = true;
+    this.onModelSpeaking(true);
+
+    let fullAIResponse = "";
+
+    try {
+      const response = await fetch('/api/interview/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          history: this.history,
+          context: this.lastCodeContext,
+          interviewMode: this.interviewMode,
+          problemContext: this.problemContext,
+        }),
+        signal: this.abortController.signal
+      });
+
+      if (!response.ok) throw new Error("Chat Stream API failed");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Failed to read stream");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      if (!silent) {
+        this.history.push({ role: 'user', content: text });
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine.startsWith("data: ")) continue;
+          
+          try {
+            const data = JSON.parse(cleanLine.substring(6));
+            if (data.audio) {
+              // Play chunk immediately and keep track of timing
+              await this.queueAudioChunk(data.audio);
+            }
+            if (data.text) {
+              fullAIResponse += data.text;
+              this.onMessage(fullAIResponse);
+            }
+          } catch (e) {
+            console.error("Error parsing stream chunk", e);
+          }
+        }
+      }
+
+      this.history.push({ role: 'model', content: fullAIResponse });
+      this.onTurnEnd();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("Stream aborted");
+      } else {
+        console.error("Chat error:", error);
+        this.onError(error instanceof Error ? error : new Error("Chat failed"));
+      }
+    } finally {
+      this._isModelSpeaking = false;
+      this.onModelSpeaking(false);
+      this.startListening();
+      this.abortController = null;
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Audio playback (Gapless Streaming)
+  // ──────────────────────────────────────────────
+
+  private async queueAudioChunk(base64Audio: string) {
+    if (!this.audioContext) return;
+
+    try {
+      const bin = window.atob(base64Audio);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+      const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
+      
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+
+      // Simple gain node for volume tracking
+      const gainNode = this.audioContext.createGain();
+      source.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      // Start time logic for gapless playback
+      const now = this.audioContext.currentTime;
+      if (this.nextStartTime < now) {
+        this.nextStartTime = now + 0.1; // Small buffer for first chunk
+      }
+
+      source.start(this.nextStartTime);
+      this.nextStartTime += audioBuffer.duration;
+
+      this.onVolume(0.5);
+      
+      source.onended = () => {
+        // Only reset volume if this was the last chunk in the current queue
+        if (this.audioContext && this.nextStartTime <= this.audioContext.currentTime + 0.1) {
+          this.onVolume(0);
+        }
+      };
+    } catch (e) {
+      console.error("Audio chunk playback error:", e);
+    }
+  }
+
+  async playAudio(base64Audio: string) {
+    // Legacy support for non-streaming calls
+    return this.queueAudioChunk(base64Audio);
+  }
+
+  // ──────────────────────────────────────────────
+  // Public helpers
+  // ──────────────────────────────────────────────
 
   sendText(text: string) {
     this.handleUserMessage(text);
   }
 
-  sendCodeContext(code: string, silent = true) {
+  sendCodeContext(code: string) {
     this.lastCodeContext = code;
   }
 
   promptToSpeak() {
-      // Not implemented
+    if (!this.isListening && this.mediaStream) {
+      this.startListening();
+    }
   }
 
   clearAudioQueue() {
-    if (this.audioContext) {
-        this.audioContext.suspend();
-        this.audioContext.resume();
+    if (this.currentAudioSource) {
+      try { this.currentAudioSource.stop(); } catch { /* may be already stopped */ }
+      this.currentAudioSource = null;
     }
+    this.onVolume(0);
   }
 }
 

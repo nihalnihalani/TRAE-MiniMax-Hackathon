@@ -48,18 +48,43 @@ export class CodeRabbitService {
   }
 
   private parseCLIOutput(output: string): CodeRabbitReview {
-      // Basic parsing logic - treat lines as issues or summary
-      // This is a placeholder for actual parsing of the CLI output
-      return {
-          summary: "CodeRabbit Analysis Result",
-          walkthrough: ["Analysis completed via CLI."],
-          issues: [
-              {
+      const lines = output.split('\n').filter(line => line.trim());
+      const issues: CodeRabbitReview['issues'] = [];
+      const walkthrough: string[] = [];
+      let summary = '';
+
+      for (const line of lines) {
+          const trimmed = line.trim();
+
+          if (trimmed.match(/^(error|critical|bug)/i)) {
+              issues.push({ severity: 'high', message: trimmed });
+          } else if (trimmed.match(/^(warning|warn|caution)/i)) {
+              issues.push({ severity: 'medium', message: trimmed });
+          } else if (trimmed.match(/^(info|note|suggestion|style)/i)) {
+              issues.push({ severity: 'low', message: trimmed });
+          } else if (trimmed.match(/^(summary|overview)/i)) {
+              summary = trimmed;
+          } else if (trimmed.length > 10) {
+              walkthrough.push(trimmed);
+          }
+      }
+
+      // Fall back to basic wrapping if no structured output was parsed
+      if (issues.length === 0 && walkthrough.length === 0) {
+          return {
+              summary: "CodeRabbit Analysis Result",
+              walkthrough: ["Analysis completed via CLI."],
+              issues: [{
                   severity: 'medium',
-                  message: output.slice(0, 200) + (output.length > 200 ? "..." : ""),
-                  line: 0
-              }
-          ]
+                  message: output.slice(0, 500) + (output.length > 500 ? "..." : ""),
+              }]
+          };
+      }
+
+      return {
+          summary: summary || "CodeRabbit Analysis Complete",
+          walkthrough: walkthrough.length > 0 ? walkthrough.slice(0, 10) : ["Analysis completed."],
+          issues
       };
   }
 

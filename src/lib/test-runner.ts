@@ -7,7 +7,15 @@ function formatPythonValue(val: any): string {
     return String(val);
 }
 
-export function generateTestCode(problem: Problem, userCode: string): string {
+function formatJsValue(val: any): string {
+    if (val === null) return 'null';
+    if (val === undefined) return 'undefined';
+    if (Array.isArray(val)) return `[${val.map(formatJsValue).join(', ')}]`;
+    if (typeof val === 'string') return JSON.stringify(val);
+    return String(val);
+}
+
+function generatePythonTestCode(problem: Problem, userCode: string): string {
     const testCalls = problem.testCases.map((tc, i) => {
         const argsStr = tc.inputs.map(formatPythonValue).join(', ');
         const expectedStr = formatPythonValue(tc.expected);
@@ -26,4 +34,34 @@ except Exception as e:
     }).join('\n');
 
     return `${userCode}\n\nprint("\\n=== Running Tests ===\")\n${testCalls}\nprint("\\n=== Tests Complete ===\")`;
+}
+
+function generateJsTestCode(problem: Problem, userCode: string): string {
+    const testCalls = problem.testCases.map((tc, i) => {
+        const argsStr = tc.inputs.map(formatJsValue).join(', ');
+        const expectedStr = formatJsValue(tc.expected);
+
+        return `
+try {
+    const result = ${problem.functionName}(${argsStr});
+    const expected = ${expectedStr};
+    const passed = JSON.stringify(result) === JSON.stringify(expected);
+    if (passed) {
+        console.log("\\u2713 Test ${i + 1} passed");
+    } else {
+        console.log("\\u2717 Test ${i + 1} failed: expected " + JSON.stringify(expected) + ", got " + JSON.stringify(result));
+    }
+} catch (e) {
+    console.log("\\u2717 Test ${i + 1} error: " + e.message);
+}`;
+    }).join('\n');
+
+    return `${userCode}\n\nconsole.log("\\n=== Running Tests ===");\n${testCalls}\nconsole.log("\\n=== Tests Complete ===");`;
+}
+
+export function generateTestCode(problem: Problem, userCode: string, language: string = 'python'): string {
+    if (language === 'javascript' || language === 'typescript') {
+        return generateJsTestCode(problem, userCode);
+    }
+    return generatePythonTestCode(problem, userCode);
 }
