@@ -24,7 +24,7 @@ export class MiniMaxLiveClient {
   private mediaStream: MediaStream | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private analyserNode: AnalyserNode | null = null;
-  private currentAudioSource: AudioBufferSourceNode | null = null;
+  private scheduledSources: AudioBufferSourceNode[] = [];
   private nextStartTime = 0;
   private audioChunks: Blob[] = [];
   private isListening = false;
@@ -137,7 +137,15 @@ export class MiniMaxLiveClient {
   }
 
   disconnect() {
+    // Abort any in-flight stream
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+
     this.stopListening();
+    this.clearAudioQueue();
+    this._isModelSpeaking = false;
 
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((t) => t.stop());
@@ -407,31 +415,51 @@ export class MiniMaxLiveClient {
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 
-      const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
+      // Manually decode PCM (16-bit, 32kHz, Mono) to avoid browser decoding errors with partial chunks
+      let pcmData = bytes;
+      if (pcmData.length % 2 !== 0) {
+          console.warn("Received odd byte length for 16-bit PCM, trimming one byte.");
+          pcmData = pcmData.slice(0, pcmData.length - 1);
+      }
       
+      const int16 = new Int16Array(pcmData.buffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+      }
+
+      const audioBuffer = this.audioContext.createBuffer(1, float32.length, 32000);
+      audioBuffer.getChannelData(0).set(float32);
+
       const source = this.audioContext.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(this.audioContext.destination);
 
-      // Simple gain node for volume tracking
+      // Connect ONLY through gainNode (not directly to destination — that causes double audio / distortion)
       const gainNode = this.audioContext.createGain();
       source.connect(gainNode);
       gainNode.connect(this.audioContext.destination);
 
+      // Track this source so clearAudioQueue() can stop it
+      this.scheduledSources.push(source);
+
       // Start time logic for gapless playback
       const now = this.audioContext.currentTime;
       if (this.nextStartTime < now) {
-        this.nextStartTime = now + 0.1; // Small buffer for first chunk
+        this.nextStartTime = now + 0.05; // Small buffer for first chunk
       }
 
       source.start(this.nextStartTime);
       this.nextStartTime += audioBuffer.duration;
 
       this.onVolume(0.5);
-      
+
       source.onended = () => {
-        // Only reset volume if this was the last chunk in the current queue
-        if (this.audioContext && this.nextStartTime <= this.audioContext.currentTime + 0.1) {
+        // Remove from tracked sources
+        const idx = this.scheduledSources.indexOf(source);
+        if (idx !== -1) this.scheduledSources.splice(idx, 1);
+
+        // Only reset volume if no more sources are scheduled
+        if (this.scheduledSources.length === 0) {
           this.onVolume(0);
         }
       };
@@ -464,10 +492,12 @@ export class MiniMaxLiveClient {
   }
 
   clearAudioQueue() {
-    if (this.currentAudioSource) {
-      try { this.currentAudioSource.stop(); } catch { /* may be already stopped */ }
-      this.currentAudioSource = null;
+    // Stop ALL scheduled audio sources
+    for (const src of this.scheduledSources) {
+      try { src.stop(); } catch { /* may be already stopped */ }
     }
+    this.scheduledSources = [];
+    this.nextStartTime = 0;
     this.onVolume(0);
   }
 }

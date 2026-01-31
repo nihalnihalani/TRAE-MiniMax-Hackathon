@@ -58,9 +58,10 @@ export const FAST_TTS_MODEL = "speech-2.6-turbo";
 export const TTS_AUDIO_SETTINGS = {
   sample_rate: 32000,
   bitrate: 128000,
-  format: "mp3",
+  format: "pcm",
   channel: 1,
-};
+} as const;
+
 export const VOICE_BY_MODE = {
   real: "English_Gentle-voiced_man",
   practice: "English_Warm-voiced_woman",

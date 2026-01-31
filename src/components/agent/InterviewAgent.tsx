@@ -83,7 +83,7 @@ export function InterviewAgent() {
         // Create client with current interview mode (real or practice)
         const mode: InterviewMode = interviewMode === 'practice' ? 'practice' : 'real';
         console.log(`🎙️ Creating MiniMax Live client in ${mode} mode`);
-        const client = new GeminiLiveClient(apiKey, mode);
+        const client = new GeminiLiveClient(apiKey || '', mode);
 
         client.onStatusChange = (s) => setStatus(s);
         client.onToolsCall = handleToolsCall;
@@ -186,7 +186,7 @@ export function InterviewAgent() {
             codeUpdateTimeoutRef.current = setTimeout(() => {
                 if (clientRef.current?.isConnected() && currentCode.trim()) {
                     console.log("📝 Sending code update to MiniMax (debounced)");
-                    clientRef.current.sendCodeContext(currentCode, true);
+                    clientRef.current.sendCodeContext(currentCode);
                     lastCodeUpdateRef.current = Date.now();
                     previousCodeRef.current = currentCode;
                 }
@@ -291,7 +291,7 @@ export function InterviewAgent() {
                 <StatusIndicator status={status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'} />
 
                 <div className="flex-1 w-full min-w-0">
-                    <Visualizer isSpeaking={isSpeaking || isModelSpeaking} volume={volume} />
+                    <Visualizer isSpeaking={isSpeaking || isModelSpeaking} />
                 </div>
 
                 {status === 'connected' ? (

@@ -48,14 +48,23 @@ export async function POST(req: NextRequest) {
     // Create a new stream that will pipe text and audio
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+        const safeEnqueue = (data: Uint8Array) => {
+          if (!closed) {
+            try { controller.enqueue(data); } catch { closed = true; }
+          }
+        };
+        const safeClose = () => {
+          if (!closed) {
+            closed = true;
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        };
+
         try {
-          // Use a T-junction or just iterate over text stream once and feed it to TTS
-          // We'll manually iterate so we can send text chunks and then audio chunks
-          const textBuffer: string[] = [];
-          
           // Helper to stream text to client
           const pushText = (text: string) => {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
           };
 
           // Wrap the textStream to also push to client
@@ -69,16 +78,14 @@ export async function POST(req: NextRequest) {
           const audioStream = textToSpeechStreamV2(textStreamWithPush(), voiceId, FAST_TTS_MODEL);
 
           for await (const audioChunk of audioStream) {
-            const base64 = Buffer.from(audioChunk).toString('base64');
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ audio: base64 })}\n\n`));
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ audio: Buffer.from(audioChunk).toString('base64') })}\n\n`));
           }
-          
-          controller.close();
+
+          safeClose();
         } catch (error) {
           console.error("Stream processing error:", error);
-          // Don't kill the whole stream if possible, but we must report error
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`));
-          controller.close();
+          safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`));
+          safeClose();
         }
       }
     });

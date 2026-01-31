@@ -353,7 +353,6 @@ export async function* textToSpeechStreamV2(
       channel: TTS_AUDIO_SETTINGS.channel,
     },
     pronunciation_dict: { tone: [], phoneme: [] },
-    continuous_sound: true, // Important for streaming
   };
   ws.send(JSON.stringify(taskStart));
 
