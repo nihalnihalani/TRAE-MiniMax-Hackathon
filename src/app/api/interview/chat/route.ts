@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { textToSpeech, callMiniMax, CHAT_MODEL_NAME } from '@/lib/minimax';
+import { VOICE_BY_MODE, DEFAULT_MINIMAX_VOICE } from '@/lib/constants';
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, history, context } = await req.json();
+    const { text, history, context, interviewMode } = await req.json();
 
     if (!text) {
       return NextResponse.json({ error: "Text required" }, { status: 400 });
@@ -42,9 +43,10 @@ export async function POST(req: NextRequest) {
     const aiResponseText = await callMiniMax(messages, 0.7, CHAT_MODEL_NAME);
     console.log("🤖 AI Response:", aiResponseText);
 
-    // 3. Call MiniMax TTS
-    console.log("🔊 Calling MiniMax TTS...");
-    const audioBuffer = await textToSpeech(aiResponseText);
+    // 3. Call MiniMax TTS with mode-appropriate voice
+    const voiceId = VOICE_BY_MODE[interviewMode as keyof typeof VOICE_BY_MODE] || DEFAULT_MINIMAX_VOICE;
+    console.log("🔊 Calling MiniMax TTS with voice:", voiceId);
+    const audioBuffer = await textToSpeech(aiResponseText, voiceId);
 
     // Convert ArrayBuffer to Base64
     const audioBase64 = Buffer.from(audioBuffer).toString('base64');

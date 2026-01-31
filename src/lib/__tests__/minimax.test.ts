@@ -243,10 +243,10 @@ describe('MiniMax Retry Logic', () => {
     });
 });
 
-describe('Gemini API Integration', () => {
+describe('MiniMax API Integration', () => {
     // Skip actual API tests unless explicitly enabled
     const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true' &&
-        process.env.GOOGLE_AI_API_KEY;
+        process.env.MINIMAX_API_KEY;
 
     describe.skipIf(!runIntegration)('Live API Tests', () => {
         it('should analyze code with real API', async () => {

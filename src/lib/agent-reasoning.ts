@@ -164,7 +164,7 @@ export class AgentReasoning {
     }
 
     /**
-     * Deep code analysis using Gemini AI with fallback to heuristics
+     * Deep code analysis using MiniMax AI with fallback to heuristics
      */
     private async deepAnalysis(code: string, language: string): Promise<CodeAnalysis> {
         // Initial fallback analysis structure
@@ -186,7 +186,7 @@ export class AgentReasoning {
             // Map AI result to our internal structure
             analysis.complexityScore = aiResult.score ? (10 - aiResult.score) * 2 : 0; // Inverse score mapping
 
-            // Heuristic for missing dependencies (Gemini might miss specific import checks)
+            // Heuristic for missing dependencies (AI might miss specific import checks)
             const importMatches = code.match(/import\s+(\w+)|from\s+(\w+)\s+import/g);
             const commonPackages = ['numpy', 'pandas', 'requests', 'flask', 'django', 'matplotlib', 'scipy'];
             if (importMatches) {

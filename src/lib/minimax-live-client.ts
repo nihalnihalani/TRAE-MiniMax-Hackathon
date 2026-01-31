@@ -1,6 +1,6 @@
 /**
  * MiniMax Live Client
- * Replaces GeminiLiveClient using MiniMax REST API (LLM + TTS) and Browser STT.
+ * Voice interview client using MiniMax REST API (LLM + TTS) and Browser Web Speech API (STT).
  */
 
 export type InterviewMode = 'real' | 'practice';
@@ -159,7 +159,8 @@ export class MiniMaxLiveClient {
         body: JSON.stringify({
           text,
           history: this.history,
-          context: this.lastCodeContext
+          context: this.lastCodeContext,
+          interviewMode: this.interviewMode,
         })
       });
 

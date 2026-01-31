@@ -2,7 +2,7 @@
 
 /**
  * Integration Test Script
- * Tests Daytona and Gemini integrations against a running server
+ * Tests Daytona and MiniMax integrations against a running server
  */
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
@@ -190,14 +190,14 @@ async function testFileOperations(workspaceId) {
 }
 
 // ============================================================================
-// Test: Gemini Analysis
+// Test: MiniMax Analysis
 // ============================================================================
-async function testGeminiAnalysis() {
-  log('\n=== Test: Gemini Analysis ===');
+async function testMiniMaxAnalysis() {
+  log('\n=== Test: MiniMax Analysis ===');
 
-  if (!process.env.GEMINI_API_KEY) {
-    log('⏭️  Skipped (GEMINI_API_KEY not set)');
-    addResult('Gemini Analysis', 'skipped', 'No API key');
+  if (!process.env.MINIMAX_API_KEY) {
+    log('⏭️  Skipped (MINIMAX_API_KEY not set)');
+    addResult('MiniMax Analysis', 'skipped', 'No API key');
     return false;
   }
 
@@ -215,17 +215,17 @@ async function testGeminiAnalysis() {
     const result = data.data || data;
 
     if (result.score !== undefined) {
-      log(`✅ Gemini analysis works - Score: ${result.score}/10`);
-      addResult('Gemini Analysis', 'passed', `Score: ${result.score}`);
+      log(`✅ MiniMax analysis works - Score: ${result.score}/10`);
+      addResult('MiniMax Analysis', 'passed', `Score: ${result.score}`);
       return true;
     } else {
       log(`❌ Analysis failed: ${JSON.stringify(data).substring(0, 100)}`);
-      addResult('Gemini Analysis', 'failed', data.error || 'Unknown error');
+      addResult('MiniMax Analysis', 'failed', data.error || 'Unknown error');
       return false;
     }
   } catch (error) {
     log(`❌ Error: ${error.message}`);
-    addResult('Gemini Analysis', 'failed', error.message);
+    addResult('MiniMax Analysis', 'failed', error.message);
     return false;
   }
 }
@@ -285,7 +285,7 @@ async function runTests() {
   log('🚀 Starting Integration Tests');
   log(`📍 Server: ${BASE_URL}`);
   log(`🔑 Daytona API: ${process.env.DAYTONA_API_KEY ? 'Configured' : 'Not configured'}`);
-  log(`🔑 Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Not configured'}`);
+  log(`🔑 MiniMax API: ${process.env.MINIMAX_API_KEY ? 'Configured' : 'Not configured'}`);
 
   // Wait for server to be ready
   await sleep(2000);
@@ -301,7 +301,7 @@ async function runTests() {
   await testCodeExecution(workspaceId);
   await testFileOperations(workspaceId);
   await testHiddenTests(workspaceId);
-  await testGeminiAnalysis();
+  await testMiniMaxAnalysis();
 
   // Summary
   log('\n========================================');

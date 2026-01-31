@@ -1,5 +1,11 @@
 import * as Sentry from "@sentry/nextjs";
 import { CoachingFeedback, DEFAULT_COACHING_FEEDBACK, calculateSkillLevel } from "./coaching";
+import {
+  DEFAULT_TTS_MODEL,
+  FAST_TTS_MODEL,
+  DEFAULT_MINIMAX_VOICE,
+  TTS_AUDIO_SETTINGS,
+} from "./constants";
 
 /**
  * MiniMax model usage (platform.minimax.io docs):
@@ -127,13 +133,17 @@ export async function callMiniMax(messages: MiniMaxMessage[], temperature = 0.7,
   return data.reply || "";
 }
 
-export async function textToSpeech(text: string, voiceId = "English_Gentle-voiced_man"): Promise<ArrayBuffer> {
+export async function textToSpeech(
+  text: string,
+  voiceId: string = DEFAULT_MINIMAX_VOICE,
+  model: string = DEFAULT_TTS_MODEL
+): Promise<ArrayBuffer> {
   if (!MINIMAX_API_KEY) {
     throw new Error("MINIMAX_API_KEY is not set");
   }
 
   const payload: Record<string, unknown> = {
-    model: "speech-2.6-turbo",
+    model,
     voice_setting: {
       voice_id: voiceId,
       speed: 1.0,
@@ -141,10 +151,10 @@ export async function textToSpeech(text: string, voiceId = "English_Gentle-voice
       pitch: 0,
     },
     audio_setting: {
-      sample_rate: 32000,
-      bitrate: 128000,
-      format: "mp3",
-      channel: 1,
+      sample_rate: TTS_AUDIO_SETTINGS.sample_rate,
+      bitrate: TTS_AUDIO_SETTINGS.bitrate,
+      format: TTS_AUDIO_SETTINGS.format,
+      channel: TTS_AUDIO_SETTINGS.channel,
     },
     pronunciation_dict: {
       tone: [],
@@ -205,7 +215,8 @@ const MINIMAX_TTS_WS_URL = MINIMAX_TTS_BASE.includes("api.minimax.io")
 /** Yields audio chunks (Uint8Array) from MiniMax WebSocket TTS. Only works when using api.minimax.io. */
 export async function* textToSpeechStream(
   text: string,
-  voiceId = "English_Gentle-voiced_man"
+  voiceId: string = DEFAULT_MINIMAX_VOICE,
+  model: string = FAST_TTS_MODEL
 ): AsyncGenerator<Uint8Array, void, unknown> {
   if (!MINIMAX_API_KEY) throw new Error("MINIMAX_API_KEY is not set");
   if (!MINIMAX_TTS_WS_URL) throw new Error("Streaming TTS is only supported with api.minimax.io");
@@ -240,9 +251,14 @@ export async function* textToSpeechStream(
 
   const taskStart = {
     event: "task_start",
-    model: "speech-2.6-turbo",
+    model,
     voice_setting: { voice_id: voiceId, speed: 1, vol: 1, pitch: 0 },
-    audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
+    audio_setting: {
+      sample_rate: TTS_AUDIO_SETTINGS.sample_rate,
+      bitrate: TTS_AUDIO_SETTINGS.bitrate,
+      format: TTS_AUDIO_SETTINGS.format,
+      channel: TTS_AUDIO_SETTINGS.channel,
+    },
     pronunciation_dict: { tone: [], phoneme: [] },
     continuous_sound: false,
   };

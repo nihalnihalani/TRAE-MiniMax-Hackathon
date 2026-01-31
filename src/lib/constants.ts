@@ -49,9 +49,43 @@ export const MINIMAX_RETRY_CONFIG = {
 export const CODERABBIT_INSTALL_CMD = 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh';
 export const CODERABBIT_INSTALL_TIMEOUT = 60000; // 60 seconds
 
-// Voice Configuration (MiniMax TTS voices)
-export const DEFAULT_MINIMAX_VOICE = "English_Gentle-voiced_man";
-export const DEFAULT_VOICE_ID = DEFAULT_MINIMAX_VOICE; // Alias for backwards compatibility
+// ============================================================================
+// MiniMax TTS Configuration
+// ============================================================================
+
+// TTS Models (see https://platform.minimax.io docs)
+export const TTS_MODEL_HD = "speech-2.8-hd";        // Best quality: tonal nuances, timbre similarity
+export const TTS_MODEL_TURBO = "speech-2.8-turbo";   // Faster, affordable, good nuances
+
+// Default TTS model per use case
+export const DEFAULT_TTS_MODEL = TTS_MODEL_HD;         // High quality for interview chat
+export const FAST_TTS_MODEL = TTS_MODEL_TURBO;         // Fast option for streaming
+
+// Voice IDs for different interview scenarios
+export const VOICES = {
+  INTERVIEWER_PRIMARY: "English_Trustworth_Man",      // Professional, trustworthy
+  INTERVIEWER_FEMALE: "English_ConfidentWoman",       // Confident, authoritative
+  PRACTICE_COACH: "English_PatientMan",               // Patient, encouraging
+  FALLBACK: "English_Gentle-voiced_man",              // Default fallback
+} as const;
+
+// Voice selection per interview mode
+export const VOICE_BY_MODE = {
+  real: VOICES.INTERVIEWER_PRIMARY,
+  practice: VOICES.PRACTICE_COACH,
+} as const;
+
+// Default voice
+export const DEFAULT_MINIMAX_VOICE = VOICES.INTERVIEWER_PRIMARY;
+export const DEFAULT_VOICE_ID = DEFAULT_MINIMAX_VOICE;
+
+// Audio settings for TTS
+export const TTS_AUDIO_SETTINGS = {
+  sample_rate: 32000,
+  bitrate: 128000,
+  format: "mp3" as const,
+  channel: 1,
+} as const;
 
 // Keyboard Shortcuts
 export const WIZARD_SHORTCUT = { ctrl: true, shift: true, key: 'X' };

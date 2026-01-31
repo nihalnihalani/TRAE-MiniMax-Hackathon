@@ -13,14 +13,14 @@ export async function POST(req: NextRequest) {
       return errorResponse(validation.error || 'Invalid request', 400, 'VALIDATION_ERROR');
     }
 
-    const { text, voiceId } = validation.data!;
+    const { text, voiceId, model } = validation.data!;
 
     if (!process.env.MINIMAX_API_KEY) {
       return errorResponse('MiniMax API key not configured', 500, 'MISSING_API_KEY');
     }
 
     // Use MiniMax TTS
-    const audioBuffer = await textToSpeech(text, voiceId || undefined);
+    const audioBuffer = await textToSpeech(text, voiceId || undefined, model || undefined);
     const responseData = new Uint8Array(audioBuffer);
 
     return new Response(responseData, {

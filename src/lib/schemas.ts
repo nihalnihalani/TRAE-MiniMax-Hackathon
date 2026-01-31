@@ -144,6 +144,7 @@ export const TestCodeRequestSchema = z.object({
 export const TTSRequestSchema = z.object({
     text: TTSTextSchema,
     voiceId: z.string().optional(),
+    model: z.string().optional(),
 });
 
 export const ListFilesQuerySchema = z.object({
