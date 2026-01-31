@@ -19,7 +19,7 @@ export function AnalysisPanel({ result, isLoading }: { result: AnalysisResult | 
     return (
       <div className="flex flex-col items-center justify-center p-8 text-gray-400 animate-pulse">
         <BrainCircuit className="w-8 h-8 mb-2 animate-spin-slow" />
-        <p>Gemini is analyzing your code...</p>
+        <p>MiniMax is analyzing your code...</p>
       </div>
     );
   }

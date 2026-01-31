@@ -145,7 +145,7 @@ interface InterviewState {
   removeCustomProblem: (id: string) => void;
   updateCustomProblem: (id: string, updates: Partial<CustomProblem>) => void;
 
-  // Agent disconnect callback (for stopping Gemini Live when ending interview)
+  // Agent disconnect callback (for stopping MiniMax Live when ending interview)
   agentDisconnect: (() => void) | null;
   setAgentDisconnect: (fn: (() => void) | null) => void;
 }

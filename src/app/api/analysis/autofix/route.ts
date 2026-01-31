@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { generateAutoFix } from '@/lib/gemini';
+import { generateAutoFix } from '@/lib/minimax';
 import { daytonaService } from '@/lib/daytona';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { AutoFixRequestSchema, validateRequest } from '@/lib/schemas';

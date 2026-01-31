@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateInterviewReport, InterviewReportData } from '@/lib/gemini';
+import { generateInterviewReport, InterviewReportData } from '@/lib/minimax';
 import { rateLimiter, getRateLimitConfig } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {

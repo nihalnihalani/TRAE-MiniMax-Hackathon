@@ -8,7 +8,7 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { Mic, MicOff, GraduationCap } from 'lucide-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { getAgentTools } from '@/lib/agent-tools';
-import { GeminiLiveClient, ConnectionStatus, InterviewMode, ProblemContext } from '@/lib/gemini-live-client';
+import { MiniMaxLiveClient, ConnectionStatus, InterviewMode, ProblemContext } from '@/lib/minimax-live-client';
 import { PROBLEMS } from '@/data/problems';
 import { COMPANIES } from '@/data/company-problems';
 
@@ -16,14 +16,14 @@ export function InterviewAgent() {
     const { code, workspaceId, workspaceStatus, interviewMode, currentProblemId, selectedCompanyId, setAgentDisconnect } = useInterviewStore();
     const [isThinking, setIsThinking] = useState(false);
     const [currentAction, setCurrentAction] = useState<string>('');
-    
-    // Gemini Live Client State
+
+    // MiniMax Live Client State
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
     const [isModelSpeaking, setIsModelSpeaking] = useState(false);
     const [wasInterrupted, setWasInterrupted] = useState(false);
-    const clientRef = useRef<GeminiLiveClient | null>(null);
+    const clientRef = useRef<MiniMaxLiveClient | null>(null);
 
     // Tool handler - always gets fresh state to avoid closure issues
     const handleToolsCall = useCallback(async (functionCalls: any[]) => {
@@ -38,7 +38,7 @@ export function InterviewAgent() {
         for (const call of functionCalls) {
             const name = call.name;
             const args = call.args || {};
-            const id = call.id; // Gemini function call ID
+            const id = call.id;
             const fn = (toolFunctions as any)[name];
 
             console.log(`🔧 Executing tool: ${name}`, { id, args });
@@ -50,7 +50,7 @@ export function InterviewAgent() {
                     const result = await fn(args);
                     console.log(`✅ Tool ${name} result:`, typeof result === 'string' ? result.substring(0, 200) : result);
                     responses.push({
-                        id: id, // Include the function call ID
+                        id: id,
                         name: name,
                         response: { result: result }
                     });
@@ -77,18 +77,16 @@ export function InterviewAgent() {
 
     // Initialize Client
     useEffect(() => {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        console.log("🔑 Gemini API Key available:", !!apiKey, apiKey ? `(${apiKey.substring(0, 10)}...)` : '');
+        const apiKey = process.env.NEXT_PUBLIC_MINIMAX_API_KEY || '';
+        console.log("🔑 MiniMax API Key available:", !!apiKey);
 
-        if (!apiKey) {
-            console.error("❌ Gemini API Key missing! Set NEXT_PUBLIC_GEMINI_API_KEY in .env.local");
-            return;
-        }
+        // MiniMax client uses server-side API key via /api/interview/chat
+        // Client-side key is optional (only needed if client makes direct calls)
 
         // Create client with current interview mode (real or practice)
         const mode: InterviewMode = interviewMode === 'practice' ? 'practice' : 'real';
-        console.log(`🎙️ Creating Gemini Live client in ${mode} mode`);
-        const client = new GeminiLiveClient(apiKey, mode);
+        console.log(`🎙️ Creating MiniMax Live client in ${mode} mode`);
+        const client = new MiniMaxLiveClient(apiKey, mode);
 
         client.onStatusChange = (s) => setStatus(s);
         client.onToolsCall = handleToolsCall;
@@ -97,7 +95,7 @@ export function InterviewAgent() {
             setIsSpeaking(vol > 0.01);
         };
         client.onError = (err) => {
-            console.error("Gemini Client Error:", err);
+            console.error("MiniMax Client Error:", err);
             setIsThinking(false);
             setCurrentAction('');
         };
@@ -133,7 +131,7 @@ export function InterviewAgent() {
         };
 
         clientRef.current = client;
-        console.log(`🎙️ Gemini Live client initialized in ${mode} mode`);
+        console.log(`🎙️ MiniMax Live client initialized in ${mode} mode`);
 
         // Register disconnect callback for ending interview
         setAgentDisconnect(() => {
@@ -151,7 +149,7 @@ export function InterviewAgent() {
     // Auto-start when workspace is ready
     useEffect(() => {
         if (workspaceStatus === 'ready' && status === 'disconnected' && clientRef.current) {
-            console.log("🚀 Auto-starting Gemini Live (workspace ready)");
+            console.log("🚀 Auto-starting MiniMax Live (workspace ready)");
             handleStart();
         }
     }, [workspaceStatus, status]);
@@ -161,7 +159,7 @@ export function InterviewAgent() {
     const codeUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastCodeUpdateRef = useRef<number>(0);
 
-    // Send code updates to Gemini when candidate types (with debouncing)
+    // Send code updates when candidate types (with debouncing)
     useEffect(() => {
         // Only send if connected and code has meaningfully changed
         if (!clientRef.current?.isConnected() || status !== 'connected') {
@@ -190,7 +188,7 @@ export function InterviewAgent() {
             // Debounce: wait 2 seconds after typing stops before sending
             codeUpdateTimeoutRef.current = setTimeout(() => {
                 if (clientRef.current?.isConnected() && currentCode.trim()) {
-                    console.log("📝 Sending code update to Gemini (debounced)");
+                    console.log("📝 Sending code update to MiniMax (debounced)");
                     clientRef.current.sendCodeContext(currentCode, true);
                     lastCodeUpdateRef.current = Date.now();
                     previousCodeRef.current = currentCode;
@@ -205,7 +203,7 @@ export function InterviewAgent() {
         };
     }, [code, status]);
 
-    // Helper to get current problem context for Gemini
+    // Helper to get current problem context
     const getCurrentProblemContext = (): ProblemContext | null => {
         if (!currentProblemId) return null;
 
@@ -249,18 +247,18 @@ export function InterviewAgent() {
         console.log("🚀 handleStart called, clientRef.current:", !!clientRef.current);
 
         if (!clientRef.current) {
-            console.error("❌ Gemini client not initialized!");
+            console.error("❌ MiniMax client not initialized!");
             return;
         }
 
         try {
-            // Set problem context BEFORE connecting so Gemini knows the problem
+            // Set problem context BEFORE connecting so the AI knows the problem
             const problemContext = getCurrentProblemContext();
             if (problemContext) {
                 clientRef.current.setProblemContext(problemContext);
                 console.log(`📋 Starting interview with problem: ${problemContext.title}`);
             } else {
-                console.warn("⚠️ No problem selected - Gemini won't know what to interview about");
+                console.warn("⚠️ No problem selected - AI won't know what to interview about");
             }
 
             console.log("🔌 Calling connect()...");

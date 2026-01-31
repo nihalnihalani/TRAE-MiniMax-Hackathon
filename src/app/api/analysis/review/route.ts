@@ -1,4 +1,4 @@
-import { analyzeCodeWithGemini } from '@/lib/gemini';
+import { analyzeCodeWithMiniMax } from '@/lib/minimax';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { AnalysisReviewRequestSchema, validateRequest } from '@/lib/schemas';
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
     const { code, language } = validation.data!;
 
-    const analysis = await analyzeCodeWithGemini(code, language || 'python');
+    const analysis = await analyzeCodeWithMiniMax(code, language || 'python');
     return successResponse(analysis);
   } catch (error) {
     return handleApiError(error, 'Analysis Error');

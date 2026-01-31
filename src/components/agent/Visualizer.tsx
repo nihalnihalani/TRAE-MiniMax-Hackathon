@@ -63,7 +63,7 @@ export function Visualizer({ isSpeaking, volume = 0 }: { isSpeaking: boolean, vo
       // Or just rely on the volume. Let's add a tiny noise floor if speaking.
       const displayLevel = isSpeaking ? Math.max(currentLevel, 0.05) : currentLevel;
 
-      ctx.fillStyle = isSpeaking ? '#a855f7' : '#374151'; // Purple-500 if speaking (Gemini brand colorish), Gray if not
+      ctx.fillStyle = isSpeaking ? '#a855f7' : '#374151'; // Purple-500 if speaking, Gray if not
 
       const bars = Math.max(20, Math.floor(canvas.width / 6)); // More bars for smoother look
       const spacing = 2;

@@ -1,5 +1,5 @@
 import { Mutex } from 'async-mutex';
-import { analyzeCodeWithGemini } from './gemini';
+import { analyzeCodeWithMiniMax } from './minimax';
 import { COMPLEXITY_HIGH, COMPLEXITY_MEDIUM, MAX_HINTS } from './constants';
 
 /**
@@ -180,8 +180,8 @@ export class AgentReasoning {
         };
 
         try {
-            // Use Gemini for deep semantic analysis
-            const aiResult = await analyzeCodeWithGemini(code, language);
+            // Use MiniMax for deep semantic analysis
+            const aiResult = await analyzeCodeWithMiniMax(code, language);
 
             // Map AI result to our internal structure
             analysis.complexityScore = aiResult.score ? (10 - aiResult.score) * 2 : 0; // Inverse score mapping
