@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { GeminiLiveClient, ConnectionStatus } from '@/lib/gemini-live-client';
+import { MiniMaxLiveClient, ConnectionStatus } from '@/lib/minimax-live-client';
 
 export default function TestAgentPage() {
     const [logs, setLogs] = useState<string[]>([]);
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
-    const [testText, setTestText] = useState('Hello! This is a test of the Gemini Live voice system.');
-    const clientRef = useRef<GeminiLiveClient | null>(null);
+    const [testText, setTestText] = useState('Hello! This is a test of the MiniMax voice system.');
+    const clientRef = useRef<MiniMaxLiveClient | null>(null);
 
     const addLog = (message: string) => {
         console.log(message);
@@ -15,13 +15,9 @@ export default function TestAgentPage() {
     };
 
     useEffect(() => {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        if (!apiKey) {
-            addLog('Gemini API Key not found in environment');
-            return;
-        }
+        const apiKey = process.env.NEXT_PUBLIC_MINIMAX_API_KEY || '';
 
-        const client = new GeminiLiveClient(apiKey);
+        const client = new MiniMaxLiveClient(apiKey);
 
         client.onStatusChange = (s) => {
             setStatus(s);
@@ -52,7 +48,7 @@ export default function TestAgentPage() {
     }, []);
 
     const handleStart = async () => {
-        addLog('Starting Gemini Live session...');
+        addLog('Starting MiniMax Live session...');
         if (clientRef.current) {
             await clientRef.current.connect();
         }
@@ -77,7 +73,7 @@ export default function TestAgentPage() {
     return (
         <div className="min-h-screen bg-gray-900 text-white p-8">
             <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">Gemini Live Agent Test</h1>
+                <h1 className="text-3xl font-bold mb-6">MiniMax Live Agent Test</h1>
 
                 <div className="bg-gray-800 p-6 rounded-lg mb-6">
                     <div className="flex items-center gap-4 mb-4">
@@ -148,7 +144,7 @@ export default function TestAgentPage() {
                 <div className="mt-6 bg-blue-900/30 border border-blue-500/50 p-4 rounded-lg">
                     <h3 className="font-bold mb-2">Test Purpose</h3>
                     <p className="text-sm text-gray-300">
-                        This is a minimal test for Gemini Live connection. It tests the WebSocket connection,
+                        This is a minimal test for MiniMax Live connection. It tests the REST API connection,
                         microphone input, audio output, and text-to-speech functionality.
                     </p>
                 </div>

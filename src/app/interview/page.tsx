@@ -303,7 +303,7 @@ export default function InterviewPage() {
   };
 
   const handleEndInterview = async () => {
-    // Stop Gemini Live first
+    // Stop MiniMax Live first
     if (agentDisconnect) {
       agentDisconnect();
     }

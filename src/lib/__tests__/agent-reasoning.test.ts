@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AgentReasoning } from '../agent-reasoning';
 
-// Mock the Gemini module to avoid actual API calls
-vi.mock('../gemini', () => ({
-    analyzeCodeWithGemini: vi.fn().mockResolvedValue({
+// Mock the MiniMax module to avoid actual API calls
+vi.mock('../minimax', () => ({
+    analyzeCodeWithMiniMax: vi.fn().mockResolvedValue({
         score: 8,
         security_score: 9,
         complexity: 'medium',

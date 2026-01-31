@@ -37,8 +37,8 @@ export const DEFAULT_RETRY_CONFIG = {
   backoffMultiplier: 2,
 } as const;
 
-// Gemini AI Retry Configuration
-export const GEMINI_RETRY_CONFIG = {
+// MiniMax AI Retry Configuration
+export const MINIMAX_RETRY_CONFIG = {
   maxAttempts: 3,
   initialDelayMs: 1000,
   maxDelayMs: 8000,
@@ -49,9 +49,9 @@ export const GEMINI_RETRY_CONFIG = {
 export const CODERABBIT_INSTALL_CMD = 'curl -fsSL https://cli.coderabbit.ai/install.sh | sh';
 export const CODERABBIT_INSTALL_TIMEOUT = 60000; // 60 seconds
 
-// Voice Configuration (Gemini Live voices: Aoede, Puck, Charon, Kore, Fenrir)
-export const DEFAULT_GEMINI_VOICE = "Aoede"; // Warm, professional female voice
-export const DEFAULT_VOICE_ID = DEFAULT_GEMINI_VOICE; // Alias for backwards compatibility
+// Voice Configuration (MiniMax TTS voices)
+export const DEFAULT_MINIMAX_VOICE = "English_Gentle-voiced_man";
+export const DEFAULT_VOICE_ID = DEFAULT_MINIMAX_VOICE; // Alias for backwards compatibility
 
 // Keyboard Shortcuts
 export const WIZARD_SHORTCUT = { ctrl: true, shift: true, key: 'X' };

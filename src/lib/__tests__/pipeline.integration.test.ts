@@ -10,8 +10,8 @@ import { ReportGenerator } from '../reporting';
 import { validateRequest, ExecuteCodeRequestSchema, AutoFixRequestSchema } from '../schemas';
 
 // Mock external dependencies
-vi.mock('../gemini', () => ({
-    analyzeCodeWithGemini: vi.fn().mockResolvedValue({
+vi.mock('../minimax', () => ({
+    analyzeCodeWithMiniMax: vi.fn().mockResolvedValue({
         score: 8,
         security_score: 9,
         complexity: 'medium',
