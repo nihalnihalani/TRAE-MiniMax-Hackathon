@@ -51,5 +51,20 @@ export const CODERABBIT_INSTALL_TIMEOUT = 60000; // 60 seconds
 // Voice Configuration
 export const DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9"; // Default Jessica voice
 
+// MiniMax Configuration
+export const DEFAULT_MINIMAX_VOICE = "English_Gentle-voiced_man";
+export const DEFAULT_TTS_MODEL = "speech-2.6-turbo";
+export const FAST_TTS_MODEL = "speech-2.6-turbo";
+export const TTS_AUDIO_SETTINGS = {
+  sample_rate: 32000,
+  bitrate: 128000,
+  format: "mp3",
+  channel: 1,
+};
+export const VOICE_BY_MODE = {
+  real: "English_Gentle-voiced_man",
+  practice: "English_Warm-voiced_woman",
+} as const;
+
 // Keyboard Shortcuts
 export const WIZARD_SHORTCUT = { ctrl: true, shift: true, key: 'X' };
